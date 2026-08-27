@@ -94,6 +94,9 @@ deployment, performance, and troubleshooting notes.
 
 ## License
 
-This project includes and derives from HoverRace source and assets. Review
+This project includes and derives from HoverRace source and assets. Review the
+repository [`NOTICE.md`](NOTICE.md) and the complete
 [`hr-web/HOVERRACE-LICENSE.txt`](hr-web/HOVERRACE-LICENSE.txt) before
-redistributing or hosting it.
+redistributing or hosting it. The public/browser distribution also carries
+these notices under `hr-web/public/` so they are included in `dist/` after a
+production build.
