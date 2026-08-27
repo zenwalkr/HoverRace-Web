@@ -1,0 +1,123 @@
+add_local_player:
+  type: method
+  sig:
+    - game:add_local_player()
+    - game:add_local_player(name)
+  brief: >
+    Add a new local player.
+
+    If the player name is specified, then the profile for the player will be
+    loaded.
+
+    The player will not be connected to a controller, but it can me manipulated
+    from scripts.
+
+announce:
+  type: method
+  sig:
+    - game:announce(label)
+    - game:announce(label, text)
+  brief: >
+    Post an announcement.
+
+get_config:
+  type: method
+  sig:
+    - config = game:get_config()
+  brief: >
+    Retrieve a reference to the configuration.
+  desc: >
+    The return value is a Config object.
+
+is_initialized:
+  type: method
+  sig:
+    - init = game:is_initialized()
+  brief: >
+    Check if the game is initialized.
+  desc: >
+    Returns true or false.
+
+    The game is initialized just before the on_init handlers are called.
+
+on_init:
+  type: event
+  brief: >
+    Called immediately after the game is initialized.
+
+on_session_begin:
+  type: event
+  brief: >
+    Called when a game session starts.
+  desc: >
+    The Session object is passed to the callback function.
+
+on_session_end:
+  type: event
+  brief: >
+    Called when a game session ends.
+  desc: >
+    The Session object is passed to the callback function.
+
+on_shutdown:
+  type: event
+  brief: >
+    Called immediately before the game shuts down.
+
+screenshot:
+  type: method
+  sig:
+    - game:screenshot()
+  brief: >
+    Take a screenshot.
+
+shutdown:
+  type: method
+  sig:
+    - game:shutdown()
+  brief: >
+    Gracefully exit the game.
+  desc: >
+    All on_session_end and on_shutdown events will be fired as usual, but
+    all normal confirmation prompts are disabled.
+
+start_main_menu:
+  type: method
+  sig:
+    - game:start_main_menu()
+  brief: >
+    Return to the game main menu.
+  desc: >
+    Immediately exits any running game or menu and returns to the main menu.
+
+start_practice:
+  type: method
+  sig:
+    - game:start_practice(track_name)
+    - game:start_practice(track_name, rulebook)
+    - game:start_practice(track_name, {opts...})
+    - game:start_practice(track_name, rulebook, {opts...})
+  brief: >
+    Start a single-player practice race.
+  desc: >
+    This may only be called after the game is initialized (e.g. in an on_init
+    handler or later).
+
+    "rulebook" is the name of the rulebook (default is "Race").
+
+    "opts" is a table of options for the session.
+  examples:
+    - game:start_practice("The Alley2", "Race", { laps = 2 })
+
+toggle_hud:
+  type: method
+  sig:
+    - visible = game:toggle_hud()
+  brief: >
+    Toggle the in-game HUD.
+  desc: >
+    This toggles the visibility of the in-game HUD for all players while
+    playing.
+
+    The return value is true if the HUD is now visible, false if the HUD
+    is now hidden.

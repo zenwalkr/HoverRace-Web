@@ -1,0 +1,21 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Custom for Visual Studio
+*.rc     text eol=crlf
+
+# Standard to msysgit
+*.doc	 diff=astextplain
+*.DOC	 diff=astextplain
+
+# Overrides for GitHub Linguist.
+# https://github.com/github/linguist#overrides
+*.cpp linguist-language=C++
+*.h linguist-language=C++
+external/* linguist-vendored
+hovercad/* linguist-vendored
+include/* linguist-vendored
+lib/* linguist-vendored
+srcdoc/* linguist-documentation
+updater/bzlib/* linguist-vendored
+

@@ -1,0 +1,16 @@
+de
+en_AU
+en_GB
+en_NZ
+en_US@piglatin
+es
+et
+fi
+fr
+nb
+nl
+pt
+pt_BR
+ro
+sr
+tlh

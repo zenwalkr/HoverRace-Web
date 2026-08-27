@@ -1,0 +1,686 @@
+[
+  {
+    "id": 1,
+    "source": "bitmaps/24-bit/black.bmp",
+    "sourceName": "black.bmp",
+    "output": "black.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 1
+  },
+  {
+    "id": 20,
+    "source": "bitmaps/24-bit/bumper.bmp",
+    "sourceName": "bumper.bmp",
+    "output": "bumper.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 21,
+    "source": "bitmaps/24-bit/craft.bmp",
+    "sourceName": "craft.bmp",
+    "output": "craft.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 22,
+    "source": "bitmaps/24-bit/basic_engine.bmp",
+    "sourceName": "basic_engine.bmp",
+    "output": "basic_engine.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 23,
+    "source": "bitmaps/24-bit/23.bmp",
+    "sourceName": "23.bmp",
+    "output": "23.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 24,
+    "source": "bitmaps/24-bit/basic_flame.bmp",
+    "sourceName": "basic_flame.bmp",
+    "output": "basic_flame.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 25,
+    "source": "bitmaps/24-bit/helmet.bmp",
+    "sourceName": "helmet.bmp",
+    "output": "helmet.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 26,
+    "source": "bitmaps/24-bit/26.bmp",
+    "sourceName": "26.bmp",
+    "output": "26.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 27,
+    "source": "bitmaps/24-bit/cx.bmp",
+    "sourceName": "cx.bmp",
+    "output": "cx.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 28,
+    "source": "bitmaps/24-bit/cx_engine.bmp",
+    "sourceName": "cx_engine.bmp",
+    "output": "cx_engine.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 29,
+    "source": "bitmaps/24-bit/bi_engine.bmp",
+    "sourceName": "bi_engine.bmp",
+    "output": "bi_engine.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 30,
+    "source": "bitmaps/24-bit/eon.bmp",
+    "sourceName": "eon.bmp",
+    "output": "eon.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 31,
+    "source": "bitmaps/24-bit/31.bmp",
+    "sourceName": "31.bmp",
+    "output": "31.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 40,
+    "source": "bitmaps/24-bit/craft1.bmp",
+    "sourceName": "craft1.bmp",
+    "output": "craft1.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 41,
+    "source": "bitmaps/24-bit/craft2.bmp",
+    "sourceName": "craft2.bmp",
+    "output": "craft2.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 42,
+    "source": "bitmaps/24-bit/craft3.bmp",
+    "sourceName": "craft3.bmp",
+    "output": "craft3.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 43,
+    "source": "bitmaps/24-bit/craft4.bmp",
+    "sourceName": "craft4.bmp",
+    "output": "craft4.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 44,
+    "source": "bitmaps/24-bit/craft5.bmp",
+    "sourceName": "craft5.bmp",
+    "output": "craft5.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 45,
+    "source": "bitmaps/24-bit/craft6.bmp",
+    "sourceName": "craft6.bmp",
+    "output": "craft6.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 46,
+    "source": "bitmaps/24-bit/craft7.bmp",
+    "sourceName": "craft7.bmp",
+    "output": "craft7.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 47,
+    "source": "bitmaps/24-bit/craft8.bmp",
+    "sourceName": "craft8.bmp",
+    "output": "craft8.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 48,
+    "source": "bitmaps/24-bit/craft9.bmp",
+    "sourceName": "craft9.bmp",
+    "output": "craft9.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 49,
+    "source": "bitmaps/24-bit/craftX.bmp",
+    "sourceName": "craftx.bmp",
+    "output": "craftx.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 50,
+    "source": "bitmaps/24-bit/cx1.bmp",
+    "sourceName": "cx1.bmp",
+    "output": "cx1.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 51,
+    "source": "bitmaps/24-bit/cx2.bmp",
+    "sourceName": "cx2.bmp",
+    "output": "cx2.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 52,
+    "source": "bitmaps/24-bit/cx3.bmp",
+    "sourceName": "cx3.bmp",
+    "output": "cx3.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 53,
+    "source": "bitmaps/24-bit/cx4.bmp",
+    "sourceName": "cx4.bmp",
+    "output": "cx4.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 54,
+    "source": "bitmaps/24-bit/cx5.bmp",
+    "sourceName": "cx5.bmp",
+    "output": "cx5.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 55,
+    "source": "bitmaps/24-bit/cx6.bmp",
+    "sourceName": "cx6.bmp",
+    "output": "cx6.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 56,
+    "source": "bitmaps/24-bit/cx7.bmp",
+    "sourceName": "cx7.bmp",
+    "output": "cx7.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 57,
+    "source": "bitmaps/24-bit/cx8.bmp",
+    "sourceName": "cx8.bmp",
+    "output": "cx8.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 58,
+    "source": "bitmaps/24-bit/cx9.bmp",
+    "sourceName": "cx9.bmp",
+    "output": "cx9.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 59,
+    "source": "bitmaps/24-bit/cxX.bmp",
+    "sourceName": "cxx.bmp",
+    "output": "cxx.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 70,
+    "source": "bitmaps/24-bit/eon1.bmp",
+    "sourceName": "eon1.bmp",
+    "output": "eon1.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 71,
+    "source": "bitmaps/24-bit/eon2.bmp",
+    "sourceName": "eon2.bmp",
+    "output": "eon2.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 72,
+    "source": "bitmaps/24-bit/eon3.bmp",
+    "sourceName": "eon3.bmp",
+    "output": "eon3.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 73,
+    "source": "bitmaps/24-bit/eon4.bmp",
+    "sourceName": "eon4.bmp",
+    "output": "eon4.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 74,
+    "source": "bitmaps/24-bit/eon5.bmp",
+    "sourceName": "eon5.bmp",
+    "output": "eon5.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 75,
+    "source": "bitmaps/24-bit/eon6.bmp",
+    "sourceName": "eon6.bmp",
+    "output": "eon6.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 76,
+    "source": "bitmaps/24-bit/eon7.bmp",
+    "sourceName": "eon7.bmp",
+    "output": "eon7.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 77,
+    "source": "bitmaps/24-bit/eon8.bmp",
+    "sourceName": "eon8.bmp",
+    "output": "eon8.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 78,
+    "source": "bitmaps/24-bit/eon9.bmp",
+    "sourceName": "eon9.bmp",
+    "output": "eon9.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 79,
+    "source": "bitmaps/24-bit/eonX.bmp",
+    "sourceName": "eonx.bmp",
+    "output": "eonx.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 80,
+    "source": "bitmaps/24-bit/missile.bmp",
+    "sourceName": "missile.bmp",
+    "output": "missile.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 81,
+    "source": "bitmaps/24-bit/missile_wing.bmp",
+    "sourceName": "missile_wing.bmp",
+    "output": "missile_wing.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 85,
+    "source": "bitmaps/24-bit/can.bmp",
+    "sourceName": "can.bmp",
+    "output": "can.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 86,
+    "source": "bitmaps/24-bit/mine_off.bmp",
+    "sourceName": "mine_off.bmp",
+    "output": "mine_off.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 87,
+    "source": "bitmaps/24-bit/mine_on.bmp",
+    "sourceName": "mine_on.bmp",
+    "output": "mine_on.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 88,
+    "source": "bitmaps/24-bit/inflating_column.bmp",
+    "sourceName": "inflating_column.bmp",
+    "output": "inflating_column.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 0
+  },
+  {
+    "id": 1051,
+    "source": "bitmaps/24-bit/metal_plate.bmp",
+    "sourceName": "metal_plate.bmp",
+    "output": "metal_plate.png",
+    "width": 1.5,
+    "height": 1.5,
+    "antiAlias": 1
+  },
+  {
+    "id": 1052,
+    "source": "bitmaps/24-bit/right_arrow_gray.bmp",
+    "sourceName": "right_arrow_gray.bmp",
+    "output": "right_arrow_gray.png",
+    "width": 2,
+    "height": 2,
+    "antiAlias": 1
+  },
+  {
+    "id": 1053,
+    "source": "bitmaps/24-bit/left_arrow_gray.bmp",
+    "sourceName": "left_arrow_gray.bmp",
+    "output": "left_arrow_gray.png",
+    "width": 2,
+    "height": 2,
+    "antiAlias": 1
+  },
+  {
+    "id": 1054,
+    "source": "bitmaps/24-bit/right_arrow_red.bmp",
+    "sourceName": "right_arrow_red.bmp",
+    "output": "right_arrow_red.png",
+    "width": 2,
+    "height": 2,
+    "antiAlias": 1
+  },
+  {
+    "id": 1055,
+    "source": "bitmaps/24-bit/left_arrow_red.bmp",
+    "sourceName": "left_arrow_red.bmp",
+    "output": "left_arrow_red.png",
+    "width": 2,
+    "height": 2,
+    "antiAlias": 1
+  },
+  {
+    "id": 1056,
+    "source": "bitmaps/24-bit/right_arrow_green.bmp",
+    "sourceName": "right_arrow_green.bmp",
+    "output": "right_arrow_green.png",
+    "width": 2,
+    "height": 2,
+    "antiAlias": 1
+  },
+  {
+    "id": 1057,
+    "source": "bitmaps/24-bit/left_arrow_green.bmp",
+    "sourceName": "left_arrow_green.bmp",
+    "output": "left_arrow_green.png",
+    "width": 2,
+    "height": 2,
+    "antiAlias": 1
+  },
+  {
+    "id": 1058,
+    "source": "bitmaps/24-bit/step_sign.bmp",
+    "sourceName": "step_sign.bmp",
+    "output": "step_sign.png",
+    "width": 2.599,
+    "height": 2.599,
+    "antiAlias": 1
+  },
+  {
+    "id": 1059,
+    "source": "bitmaps/24-bit/pass_right.bmp",
+    "sourceName": "pass_right.bmp",
+    "output": "pass_right.png",
+    "width": 2,
+    "height": 2,
+    "antiAlias": 1
+  },
+  {
+    "id": 1060,
+    "source": "bitmaps/24-bit/pass_left.bmp",
+    "sourceName": "pass_left.bmp",
+    "output": "pass_left.png",
+    "width": 2,
+    "height": 2,
+    "antiAlias": 1
+  },
+  {
+    "id": 1061,
+    "source": "bitmaps/24-bit/do_not_enter_small.bmp",
+    "sourceName": "do_not_enter_small.bmp",
+    "output": "do_not_enter_small.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 1
+  },
+  {
+    "id": 1062,
+    "source": "bitmaps/24-bit/do_not_enter_large.bmp",
+    "sourceName": "do_not_enter_large.bmp",
+    "output": "do_not_enter_large.png",
+    "width": 2,
+    "height": 2,
+    "antiAlias": 1
+  },
+  {
+    "id": 1063,
+    "source": "bitmaps/24-bit/water.bmp",
+    "sourceName": "water.bmp",
+    "output": "water.png",
+    "width": 1.5,
+    "height": 1.5,
+    "antiAlias": 1
+  },
+  {
+    "id": 1064,
+    "source": "bitmaps/24-bit/speed_zone.bmp",
+    "sourceName": "speed_zone.bmp",
+    "output": "speed_zone.png",
+    "width": 1.299,
+    "height": 1.299,
+    "antiAlias": 1
+  },
+  {
+    "id": 1065,
+    "source": "bitmaps/24-bit/fuel_zone.bmp",
+    "sourceName": "fuel_zone.bmp",
+    "output": "fuel_zone.png",
+    "width": 1.2,
+    "height": 1.2,
+    "antiAlias": 1
+  },
+  {
+    "id": 1066,
+    "source": "bitmaps/24-bit/yellow.bmp",
+    "sourceName": "yellow.bmp",
+    "output": "yellow.png",
+    "width": 0.1,
+    "height": 0.1,
+    "antiAlias": 1
+  },
+  {
+    "id": 1067,
+    "source": "bitmaps/24-bit/checkers.bmp",
+    "sourceName": "checkers.bmp",
+    "output": "checkers.png",
+    "width": 0.5,
+    "height": 0.5,
+    "antiAlias": 1
+  },
+  {
+    "id": 1068,
+    "source": "bitmaps/24-bit/pit_area.bmp",
+    "sourceName": "pit_area.bmp",
+    "output": "pit_area.png",
+    "width": 3,
+    "height": 3,
+    "antiAlias": 1
+  },
+  {
+    "id": 1069,
+    "source": "bitmaps/24-bit/finish.bmp",
+    "sourceName": "finish.bmp",
+    "output": "finish.png",
+    "width": 4,
+    "height": 4,
+    "antiAlias": 1
+  },
+  {
+    "id": 1070,
+    "source": "bitmaps/24-bit/right_arrow_red_off.bmp",
+    "sourceName": "right_arrow_red_off.bmp",
+    "output": "right_arrow_red_off.png",
+    "width": 2,
+    "height": 2,
+    "antiAlias": 1
+  },
+  {
+    "id": 1071,
+    "source": "bitmaps/24-bit/left_arrow_red_off.bmp",
+    "sourceName": "left_arrow_red_off.bmp",
+    "output": "left_arrow_red_off.png",
+    "width": 2,
+    "height": 2,
+    "antiAlias": 1
+  },
+  {
+    "id": 1072,
+    "source": "bitmaps/24-bit/right_arrow_green_off.bmp",
+    "sourceName": "right_arrow_green_off.bmp",
+    "output": "right_arrow_green_off.png",
+    "width": 2,
+    "height": 2,
+    "antiAlias": 1
+  },
+  {
+    "id": 1073,
+    "source": "bitmaps/24-bit/left_arrow_green_off.bmp",
+    "sourceName": "left_arrow_green_off.bmp",
+    "output": "left_arrow_green_off.png",
+    "width": 2,
+    "height": 2,
+    "antiAlias": 1
+  },
+  {
+    "id": 1074,
+    "source": "bitmaps/24-bit/neon.bmp",
+    "sourceName": "neon.bmp",
+    "output": "neon.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 1
+  },
+  {
+    "id": 1075,
+    "source": "bitmaps/24-bit/neon_on.bmp",
+    "sourceName": "neon_on.bmp",
+    "output": "neon_on.png",
+    "width": 1,
+    "height": 1,
+    "antiAlias": 1
+  },
+  {
+    "id": 1076,
+    "source": "bitmaps/24-bit/gray_wall.bmp",
+    "sourceName": "gray_wall.bmp",
+    "output": "gray_wall.png",
+    "width": 2,
+    "height": 2,
+    "antiAlias": 1
+  },
+  {
+    "id": 1077,
+    "source": "bitmaps/24-bit/wall_top.bmp",
+    "sourceName": "wall_top.bmp",
+    "output": "wall_top.png",
+    "width": 2,
+    "height": 2,
+    "antiAlias": 1
+  }
+]

@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#030508" />
+    <title>HoverRace Web Port</title>
+  </head>
+  <body>
+    <main id="app" aria-label="HoverRace">
+      <section id="stage" aria-label="Game viewport">
+        <canvas id="game-canvas"></canvas>
+
+        <section id="main-menu" class="hidden" aria-label="Main menu">
+          <div class="menu-brand">
+            <h1>HOVERRACE</h1>
+            <p>HTML5 · WEBGL DIRECT PORT</p>
+          </div>
+          <div class="menu-card">
+            <header><span>RACE SETUP</span><small id="menu-status">READY</small></header>
+            <div class="menu-group track-picker-group">
+              <label class="menu-label" for="track-select">TRACK</label>
+              <div class="track-picker-row">
+                <select id="track-select" aria-label="Track selection">
+                  <optgroup label="BUILT-IN TRACKS">
+                    <option value="ClassicH" selected>ClassicH</option>
+                    <option value="Steeplechase">Steeplechase</option>
+                    <option value="The Alley2">The Alley 2</option>
+                    <option value="The River">The River</option>
+                  </optgroup>
+                  <optgroup label="PROCEDURAL ENGINES">
+                    <option value="engine:small">Organic Small</option>
+                    <option value="engine:medium">Organic Medium</option>
+                    <option value="engine:large">Organic Large</option>
+                  </optgroup>
+                  <optgroup id="imported-track-options" class="imported-track-options" label="LAST IMPORTED TRACKS" hidden></optgroup>
+                </select>
+                <button id="track-import" class="import-track-button" type="button">IMPORT</button>
+              </div>
+              <input id="track-file" class="visually-hidden-file" type="file" accept=".json,.trk,application/json,application/octet-stream" multiple />
+              <small id="track-import-status" class="track-import-status" role="status"></small>
+            </div>
+            <div id="procedural-controls" class="menu-group procedural-group hidden">
+              <strong>PROCEDURAL ENGINE</strong>
+              <div class="procedural-seed-row">
+                <label for="procedural-seed">SEED</label>
+                <input id="procedural-seed" type="number" min="1" max="4294967295" step="1" value="1" inputmode="numeric" />
+                <button id="procedural-generate" type="button">GENERATE</button>
+              </div>
+              <div id="generated-track-tools" class="generated-track-tools hidden">
+                <button id="export-track-json" type="button">EXPORT JSON</button>
+                <button id="export-track-trk" type="button">EXPORT .TRK</button>
+              </div>
+            </div>
+            <div class="menu-group">
+              <strong>CRAFT</strong>
+              <div class="menu-options craft-options">
+                <button class="selected" data-menu-craft="basic_craft">Basic</button>
+                <button data-menu-craft="cx_craft">CX</button>
+                <button data-menu-craft="bi_craft">Bi-Turbo</button>
+                <button data-menu-craft="eon_craft">Eon</button>
+              </div>
+            </div>
+            <div class="menu-actions">
+              <button id="menu-internet">INTERNET ROOM</button>
+              <button id="menu-start">START RACE</button>
+            </div>
+          </div>
+          <footer>Original HoverRace track geometry, textures, meshes, and camera scale</footer>
+        </section>
+
+        <div id="loading" role="status">
+          <div class="loading-title">HOVERRACE</div>
+          <div id="loading-detail">Loading original track data…</div>
+          <div class="loading-bar"><i id="loading-progress"></i></div>
+        </div>
+
+        <header id="race-hud" class="hud hidden" aria-label="Race status">
+          <div class="hud-panel lap-panel">
+            <span class="hud-label">LAP</span>
+            <strong id="lap-value">1 / 3</strong>
+          </div>
+          <div class="hud-panel time-panel">
+            <span class="hud-label">TIME</span>
+            <strong id="time-value">0:00.000</strong>
+          </div>
+          <div class="hud-panel rank-panel">
+            <span class="hud-label">POS</span>
+            <strong id="rank-value">1 / 1</strong>
+          </div>
+        </header>
+
+        <div id="speed-hud" class="hud hidden" aria-label="Speed and fuel">
+          <div class="speed-value"><strong id="speed-value">0</strong><span>km/h</span></div>
+          <div class="fuel"><span>FUEL</span><i><b id="fuel-value"></b></i></div>
+        </div>
+
+        <div id="track-label" class="hud hidden">
+          <span id="track-name">ClassicH</span>
+          <small>WEBGL DIRECT PORT · ORIGINAL TRACK GEOMETRY</small>
+        </div>
+
+        <aside id="radar" class="hud hidden" aria-label="Track radar">
+          <span>RADAR</span>
+          <canvas id="radar-canvas" width="200" height="200"></canvas>
+        </aside>
+
+        <div id="race-countdown" class="hud hidden" role="status">STARTING IN <strong id="countdown-value">6.00</strong> SEC · 3 LAPS</div>
+
+        <nav id="touch-controls" class="hidden" aria-label="Touch controls">
+          <div class="steering-cluster">
+            <button class="touch-button steer" data-action="left" aria-label="Steer left">◀</button>
+            <button class="touch-button steer" data-action="right" aria-label="Steer right">▶</button>
+          </div>
+          <div class="radial-controls" aria-label="Driving controls">
+            <button class="touch-button radial-child back" data-action="brake" aria-label="Back">BACK</button>
+            <button class="touch-button radial-child boost" data-action="boost" data-actions="boost throttle" aria-label="Boost and gas">BOOST</button>
+            <button class="touch-button radial-child jump" data-action="jump" aria-label="Jump">JUMP</button>
+            <button class="touch-button radial-child missile" data-action="weapon" aria-label="Fire missile">MISSILE</button>
+            <button class="touch-button throttle" data-action="throttle" aria-label="Gas">GAS</button>
+          </div>
+        </nav>
+
+        <button id="camera-button" class="icon-button hidden" aria-label="Change camera">CAM</button>
+        <button id="chat-button" class="icon-button hidden" aria-label="Open chat">CHAT</button>
+        <button id="pause-button" class="icon-button hidden" aria-label="Pause">Ⅱ</button>
+        <section id="pause-screen" class="hidden" aria-label="Paused game">
+          <strong>PAUSED</strong>
+          <button id="leave-button" type="button" aria-label="Leave game">LEAVE GAME</button>
+        </section>
+
+        <div id="nickname-dialog" class="hidden" role="dialog" aria-modal="true" aria-labelledby="nickname-title">
+          <form id="nickname-form" autocomplete="off">
+            <h2 id="nickname-title">CHOOSE NICKNAME</h2>
+            <p>Enter a name for the Internet Room and your race.</p>
+            <input id="nickname-input" type="text" maxlength="24" autocomplete="nickname" aria-label="Nickname" />
+            <small id="nickname-error" role="status"></small>
+            <button type="submit">ENTER</button>
+          </form>
+        </div>
+
+        <aside id="chat-panel" class="hidden" aria-label="Internet Meeting Room chat">
+          <header>
+            <div><strong id="chat-title">GENERAL CHAT</strong><small id="chat-status">CONNECTING</small></div>
+            <button id="chat-close" aria-label="Close chat">×</button>
+          </header>
+          <div id="chat-room-bar">
+            <span class="chat-lobby-label">ALL PLAYERS</span>
+            <button id="chat-room-refresh" type="button">REFRESH</button>
+            <button id="chat-room-create" type="button">NEW GAME</button>
+            <button id="chat-race" class="hidden" type="button">JOIN GAME</button>
+            <button id="chat-start" class="hidden" type="button">START GAME</button>
+          </div>
+          <div id="chat-directory">
+            <section class="directory-section" aria-label="Players online">
+              <h3>PLAYERS ONLINE</h3>
+              <ol id="chat-users"></ol>
+            </section>
+            <section class="directory-section" aria-label="Games waiting for players">
+              <h3>WAITING GAMES</h3>
+              <ol id="chat-games"></ol>
+            </section>
+          </div>
+          <div id="chat-messages" aria-live="polite"></div>
+          <form id="chat-form" autocomplete="off">
+            <input id="chat-input" type="text" maxlength="160" enterkeyhint="send" placeholder="Message" aria-label="Chat message" />
+            <button type="submit">SEND</button>
+          </form>
+        </aside>
+        <section id="race-result" class="hidden" aria-label="Race result">
+          <strong id="race-result-title">FINISH</strong>
+          <span id="race-result-time">0:00.000</span>
+          <div>
+            <button id="race-again" type="button">RACE AGAIN</button>
+            <button id="race-menu" type="button">MAIN MENU</button>
+          </div>
+        </section>
+        <div id="orientation-warning">Rotate your phone to landscape</div>
+        <output id="performance-panel" class="hidden" aria-live="polite"></output>
+        <output id="diagnostics" aria-live="polite"></output>
+        <output id="network-status" class="hidden" aria-live="polite">OFFLINE</output>
+      </section>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,16 @@
+# Local backup archives and checksums
+/001.zip
+/005.zip
+/HR96_backup_*.zip
+/HR96_backup_*.zip.md5
+
+# Local screenshots and deployment redirect
+/img.png
+/img2.PNG
+
+# Generated/browser dependencies
+/hr-web/node_modules/
+/hr-web/dist/
+/hr-web/test-results/
+/hr-web/playwright-report/
+/hr-web/server/var/

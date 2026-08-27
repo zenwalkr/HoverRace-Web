@@ -1,0 +1,24 @@
+
+# EditorConfig: http://editorconfig.org/
+
+root = true
+
+[*]
+indent_style = tab
+indent_size = tab
+tab_width = 4
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+max_line_length = 80
+
+[*.{c,cpp,h}]
+indent_brace_style = K&R
+
+[*.yml]
+indent_style = space
+indent_size = 2
+
+[.git/{COMMIT_EDIT,MERGE}MSG]
+max_line_length = 72
+

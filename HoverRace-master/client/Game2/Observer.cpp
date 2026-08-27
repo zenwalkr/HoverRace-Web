@@ -1,0 +1,1188 @@
+// Observer.cpp
+//
+// Copyright (c) 1995-1998 - Richard Langlois and Grokksoft Inc.
+//
+// Licensed under GrokkSoft HoverRace SourceCode License v1.0(the "License");
+// you may not use this file except in compliance with the License.
+//
+// A copy of the license should have been attached to the package from which
+// you have taken this file. If you can not find the license you can not use
+// this file.
+//
+//
+// The author makes no representations about the suitability of
+// this software for any purpose.  It is provided "as is" "AS IS",
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+// implied.
+//
+// See the License for the specific language governing permissions
+// and limitations under the License.
+//
+
+#include "../../engine/VideoServices/VideoBuffer.h"
+#include "ClientSession.h"
+#include "Observer.h"
+#include "../../engine/Model/Level.h"
+#include "../../engine/Model/MazeElement.h"
+#include "../../engine/Util/Config.h"
+
+#include <math.h>
+
+#ifdef min
+#	undef min
+#endif
+
+using HoverRace::Util::Config;
+using HoverRace::VideoServices::Ascii2Simple;
+
+#define NB_PLAYER_PAGE 10
+#define MR_CHAT_EXPIRATION     20
+
+namespace HoverRace {
+namespace Client {
+
+namespace {
+
+// Global table of formatted HUD strings.
+struct GlobalFmts
+{
+	std::string rankTitle;
+	std::string hitTitle;
+
+	std::string firstLap;
+	std::string chartFinish;
+	std::string chart;
+	std::string hitChart;
+	std::string countdown;
+	std::string finish;
+	std::string finishSingle;
+	std::string bestLap;
+	std::string header;
+	std::string lastLap;
+	std::string curLap;
+
+	// This is initialized once via Observer's constructor.
+	// We have to defer the initialization until first use because the
+	// locale isn't set until the app is initialized.
+	void Init()
+	{
+		static bool initialized = false;
+		if (initialized) return;
+
+		std::string s;
+
+		//TODO: This is the original hard-coded spacing.
+		//      The revamped HUD will render these bits separately.
+		s = _("Rank"); s += "            "; s += _("Result"); s += "   "; s += _("Best Lap");
+		rankTitle = Ascii2Simple(s.c_str());
+		s = _("Rank"); s += "                 "; s += _("For"); s += "   "; s += _("Against");
+		hitTitle = Ascii2Simple(s.c_str());
+
+		firstLap = _("%d %-0.10s #%d%*s   --First lap--  %c");
+		chartFinish = _("%d %-0.10s #%d%*s %2d.%02d.%03d %2d.%02d.%03d%c");
+		chart = _("%d %-0.10s #%d%*s lap:%-2d   %2d.%02d.%03d%c");
+		hitChart = _("%d %-0.10s #%d%*s  %2d      %2d");
+		countdown = _("Starting in %02d.%02d sec. for %d laps");
+		finish = _("Finished in %d.%02d.%03d, placed %d of %d");
+		finishSingle = _("Finished in %d.%02d.%03d");
+		bestLap = _("Best lap %d.%02d.%03d");
+		header = _("%d.%02d.%02d  Lap:%d/%d");
+		lastLap = _("Last lap %d.%02d.%03d  Best %d.%02d.%03d");
+		curLap = _("Current lap %d.%02d.%03d  Best %d.%02d.%03d");
+
+		initialized = true;
+	}
+} globalFmts;
+
+}  // namespace
+
+Observer::Observer() :
+	hudVisible(true), demoMode(false),
+	splitMode(Display::HudCell::FILL)
+{
+	globalFmts.Init();
+
+	mLastCameraPosValid = FALSE;
+	mScroll = 0;
+	mApperture = MR_PI / 2;
+
+	mXMargin_1024 = 0;
+	mYMargin_1024 = 0;
+
+	mMoreMessages = FALSE;
+	mDispPlayers = 1;
+
+	mCockpitView = FALSE;
+
+	Util::ObjectFromFactoryId lBaseFontId = { 1, 1000 };
+	mBaseFont = std::dynamic_pointer_cast<ObjFac1::SpriteHandle>(
+		Util::DllObjectFactory::CreateObject(lBaseFontId));
+
+	Util::ObjectFromFactoryId lMissileLevelId = { 1, 1100 };
+	mMissileLevel = std::dynamic_pointer_cast<ObjFac1::SpriteHandle>(
+		Util::DllObjectFactory::CreateObject(lMissileLevelId));
+
+	Util::ObjectFromFactoryId lMineDispId = { 1, 1102 };
+	mMineDisp = std::dynamic_pointer_cast<ObjFac1::SpriteHandle>(
+		Util::DllObjectFactory::CreateObject(lMineDispId));
+
+	Util::ObjectFromFactoryId lPowerUpDispId = { 1, 1103 };
+	mPowerUpDisp = std::dynamic_pointer_cast<ObjFac1::SpriteHandle>(
+		Util::DllObjectFactory::CreateObject(lPowerUpDispId));
+
+	Util::ObjectFromFactoryId lHoverIconsId = { 1, 1101 };
+	mHoverIcons = std::dynamic_pointer_cast<ObjFac1::SpriteHandle>(
+		Util::DllObjectFactory::CreateObject(lHoverIconsId));
+
+	std::string selectStr("<==   ");
+	selectStr += _("Select your craft with the arrow keys");
+	selectStr += "   ==>";
+}
+
+void Observer::SetCockpitView(BOOL pOn)
+{
+	mCockpitView = pOn;
+}
+
+const std::string &Observer::GetCraftName(int id)
+{
+	static const std::string names[4] = {
+		std::string(_("Basic craft")),
+		std::string(_("CX craft")),
+		std::string(_("Bi-Turbo craft")),
+		std::string(_("Eon craft")),
+		};
+	static const std::string unknown = std::string(_("Unknown craft"));
+	return (id >= 0 && id < 4) ? names[id] : unknown;
+}
+
+void Observer::Scroll(int pOffset)
+{
+	mScroll += pOffset;
+}
+
+void Observer::Zoom(int factor)
+{
+	auto oldAperture = mApperture;
+	// positive factor zooms in, negative zooms out
+	mApperture = MR_Angle(mApperture * pow(0.8, factor));
+
+	if(mApperture < MR_PI / 10.0 || mApperture > (3.0 * MR_PI / 4.0))
+		mApperture = oldAperture;
+}
+
+void Observer::Home()
+{
+	mScroll = 0;
+	mApperture = MR_PI / 2;
+}
+
+void Observer::ToggleHudVisible()
+{
+	hudVisible = !hudVisible;
+}
+
+void Observer::SetHudVisible(bool visible)
+{
+	hudVisible = visible;
+}
+
+/**
+ * Switch to demo mode.
+ * While in demo mode, the camera switches to more "cinematic" views instead
+ * of just following behind the player's craft.
+ */
+void Observer::StartDemoMode()
+{
+	SetHudVisible(false);
+	demoMode = true;
+}
+
+void Observer::EnlargeMargin()
+{
+	if(mXMargin_1024 < 400) {
+		mXMargin_1024 += 64;
+	}
+
+	if(mYMargin_1024 < 400) {
+		mYMargin_1024 += 64;
+	}
+}
+
+void Observer::ReduceMargin()
+{
+	mXMargin_1024 -= 64;
+	mYMargin_1024 -= 64;
+
+	if(mXMargin_1024 < 0) {
+		mXMargin_1024 = 0;
+	}
+
+	if(mYMargin_1024 < 0) {
+		mYMargin_1024 = 0;
+	}
+}
+
+void Observer::SetSplitMode(Display::HudCell splitMode)
+{
+	this->splitMode = splitMode;
+}
+
+void Observer::MoreMessages()
+{
+	if(mDispPlayers != 0) {
+		mDispPlayers = 0;
+		mMoreMessages = TRUE;
+	}
+	else {
+		mMoreMessages = !mMoreMessages;
+	}
+}
+
+void Observer::PlayersListPageDn()
+{
+	if(mDispPlayers == 0) {
+		// mMoreMessages = FALSE;
+	}
+	mDispPlayers++;
+}
+
+// Rendering functions
+void Observer::Render2DDebugView(VideoServices::VideoBuffer * pDest, const Model::Level * pLevel, const MainCharacter::MainCharacter * pViewingCharacter)
+{
+	// WARNING Calculations are done using floats..it is only a debug view
+
+	// Draw a surface of 100m x 60m centered on the character
+
+	// Initialize the viewport
+	int lXRes = m2DDebugView.GetXRes();
+	int lYRes = m2DDebugView.GetYRes();
+
+	VideoServices::VideoBuffer::pixelMeter_t pixelMeter = pDest->GetPixelMeter();
+
+	// Compute the scaling factor and the origin
+												  // lXRes/100000.0; // 1m == 2mm on screen
+	double lXScaling = pixelMeter.first / (500.0 * 1000.0);
+												  //-lYRes/60000.0;
+	double lYScaling = -pixelMeter.second / (500.0 * 1000.0);
+
+	MR_3DCoordinate lCharacterPos = pViewingCharacter->mPosition;
+	MR_Angle lOrientation = pViewingCharacter->mOrientation;
+	int lRoom = pViewingCharacter->mRoom;
+
+	m2DDebugView.Clear();
+	// pDest->Clear(); // Faster
+
+	int lRoomCount;
+	const int *lRoomList = pLevel->GetVisibleZones(lRoom, lRoomCount);
+
+	// Draw each room of the maze
+	for(int lRoomId = 0; lRoomId < pLevel->GetRoomCount(); lRoomId++) {
+		Model::PolygonShape *lSectionShape = pLevel->GetRoomShape(lRoomId);
+
+		// Determine the Drawing color
+		MR_UInt8 lColor = 6;
+
+		if(lRoomId == lRoom) {
+			lColor = 7;
+		}
+		else {
+			// verify if the zone is visible
+
+			for(int lCounter = 0; lCounter < lRoomCount; lCounter++) {
+				if(lRoomList[lCounter] == lRoomId) {
+					lColor = 9;
+					break;
+				}
+			}
+		}
+
+		// Draw the contour
+
+		int lVertexCount = lSectionShape->VertexCount();
+
+		MR_Int32 lX0;
+		MR_Int32 lY0;
+		MR_Int32 lX1;
+		MR_Int32 lY1;
+
+		lX1 = (MR_Int32) ((lSectionShape->X(lVertexCount - 1) - lCharacterPos.mX) * lXScaling) + lXRes / 2;
+		lY1 = (MR_Int32) ((lSectionShape->Y(lVertexCount - 1) - lCharacterPos.mY) * lYScaling) + lYRes / 2;
+
+		for(int lVertex = 0; lVertex < lVertexCount; lVertex++) {
+			lX0 = (MR_Int32) ((lSectionShape->X(lVertex) - lCharacterPos.mX) * lXScaling) + lXRes / 2;
+			lY0 = (MR_Int32) ((lSectionShape->Y(lVertex) - lCharacterPos.mY) * lYScaling) + lYRes / 2;
+
+			m2DDebugView.DrawLine(lX0, lY0, lX1, lY1, lColor);
+
+			lX1 = lX0;
+			lY1 = lY0;
+		}
+
+		// Draw the FreeElements
+
+		delete lSectionShape;
+	}
+
+	// Draw the main character
+	int lXSideLen = int (1000.0 * lXScaling);
+	int lYSideLen = int (1000.0 * lYScaling);
+
+	m2DDebugView.DrawLine((-lXSideLen + lXRes) / 2, (lYSideLen + lYRes) / 2, (lXSideLen + lXRes) / 2, (lYSideLen + lYRes) / 2, 9);
+
+	m2DDebugView.DrawLine((-lXSideLen + lXRes) / 2, (-lYSideLen + lYRes) / 2, (lXSideLen + lXRes) / 2, (-lYSideLen + lYRes) / 2, 9);
+
+	m2DDebugView.DrawLine((lXSideLen + lXRes) / 2, (-lYSideLen + lYRes) / 2, (lXSideLen + lXRes) / 2, (lYSideLen + lYRes) / 2, 9);
+
+	m2DDebugView.DrawLine((-lXSideLen + lXRes) / 2, (-lYSideLen + lYRes) / 2, (-lXSideLen + lXRes) / 2, (lYSideLen + lYRes) / 2, 9);
+
+	m2DDebugView.DrawLine(lXRes / 2, lYRes / 2, ((MR_Cos[lOrientation] * 4 * lXSideLen / MR_TRIGO_FRACT) + lXRes) / 2, ((MR_Sin[lOrientation] * 4 * lYSideLen / MR_TRIGO_FRACT) + lYRes) / 2, 9);
+
+}
+
+void Observer::RenderWireFrameView(const Model::Level * pLevel, const MainCharacter::MainCharacter * pViewingCharacter)
+{
+
+	mWireFrameView.Clear(0);
+	// mWireFrameView.ClearZ( );
+
+	MR_3DCoordinate lCharacterPos = pViewingCharacter->mPosition;
+	MR_Angle lOrientation = pViewingCharacter->mOrientation;
+	int lRoom = pViewingCharacter->mRoom;
+
+	lCharacterPos.mZ += 1800;					  // Fix the eyes at 1m80
+
+	mWireFrameView.SetupCameraPosition(lCharacterPos, lOrientation, mScroll);
+
+	// Draw the walls and features of the visibles rooms
+	int lRoomCount;
+	pLevel->GetVisibleZones(lRoom, lRoomCount);
+
+	for(int lCounter = -1; lCounter < lRoomCount; lCounter++) {
+		MR_UInt8 lColor = 7;
+
+		// Draw the room and all the features
+		for(int lCounter2 = -1; lCounter2 < pLevel->GetFeatureCount(lRoom); lCounter2++) {
+
+			Model::SectionId lSectionId;
+
+			if(lCounter2 == -1) {
+				lSectionId.mType = Model::SectionId::eRoom;
+				lSectionId.mId = lRoom;
+			}
+			else {
+				lSectionId.mType = Model::SectionId::eFeature;
+				lSectionId.mId = pLevel->GetFeature(lRoom, lCounter2);
+			}
+			DrawWFSection(pLevel, lSectionId, lColor);
+		}
+	}
+
+}
+
+void Observer::DrawWFSection(const Model::Level * pLevel, const Model::SectionId & pSectionId, MR_UInt8 pColor)
+{
+	Model::PolygonShape *lSectionShape;
+
+	if(pSectionId.mType == Model::SectionId::eRoom) {
+		lSectionShape = pLevel->GetRoomShape(pSectionId.mId);
+	}
+	else {
+		lSectionShape = pLevel->GetFeatureShape(pSectionId.mId);
+	}
+
+	// Draw the contour
+
+	int lVertexCount = lSectionShape->VertexCount();
+	MR_3DCoordinate lP0;
+	MR_3DCoordinate lP1;
+
+	lP1.mX = lSectionShape->X(lVertexCount - 1);
+	lP1.mY = lSectionShape->Y(lVertexCount - 1);
+
+	for(int lVertex = 0; lVertex < lVertexCount; lVertex++) {
+		MR_3DCoordinate lP0Top;
+
+		lP0.mX = lSectionShape->X(lVertex);
+		lP0.mY = lSectionShape->Y(lVertex);
+
+		lP0.mZ = lSectionShape->ZMax();
+		lP1.mZ = lP0.mZ;
+		lP0Top = lP0;
+
+		mWireFrameView.DrawWFLine(lP0, lP1, pColor);
+
+		lP0.mZ = lSectionShape->ZMin();
+		lP1.mZ = lP0.mZ;
+
+		mWireFrameView.DrawWFLine(lP0, lP1, pColor);
+		mWireFrameView.DrawWFLine(lP0, lP0Top, pColor);
+
+		lP1 = lP0;
+	}
+
+	delete lSectionShape;
+
+}
+
+void Observer::Render3DView(const ClientSession *pSession, const MainCharacter::MainCharacter * pViewingCharacter, MR_SimulationTime pTime, const MR_UInt8 * pBackImage)
+{
+	using HoverRace::VideoServices::Sprite;
+
+	const bool drawHud = hudVisible && Config::GetInstance()->runtime.enableHud;
+
+	const Model::Level *lLevel = pSession->GetCurrentLevel();
+
+	MR_3DCoordinate lCameraPos;
+	MR_Angle lOrientation = pViewingCharacter->mOrientation;
+	int lRoom = pViewingCharacter->mRoom;
+
+	if(mCockpitView) {
+		lOrientation = pViewingCharacter->GetCabinOrientation();
+		lCameraPos.mX = pViewingCharacter->mPosition.mX - 256 * MR_Cos[lOrientation] / MR_TRIGO_FRACT;
+		lCameraPos.mY = pViewingCharacter->mPosition.mY - 256 * MR_Sin[lOrientation] / MR_TRIGO_FRACT;
+		lCameraPos.mZ = pViewingCharacter->mPosition.mZ + 1050;
+	}
+	else {
+		int lDist = 3400;
+
+		lOrientation = pViewingCharacter->mOrientation;
+
+		if (demoMode) {
+			//TODO: Cycle through a set of cinematic camera pans.
+			// For now, we just orbit the player at a fixed distance.
+			int factor = pTime % 11000;
+			lOrientation = MR_NORMALIZE_ANGLE(lOrientation + factor * 4096 / 11000);
+			lDist += 5000;
+		}
+		else if (pTime < -3000) {
+			int lFactor = (-pTime - 3000) * 2 / 3;
+			lOrientation = MR_NORMALIZE_ANGLE(lOrientation + lFactor * 4096 / 11000);
+			lDist += lFactor;
+		}
+
+		lCameraPos.mX = pViewingCharacter->mPosition.mX - lDist * MR_Cos[lOrientation] / MR_TRIGO_FRACT;
+		lCameraPos.mY = pViewingCharacter->mPosition.mY - lDist * MR_Sin[lOrientation] / MR_TRIGO_FRACT;
+		lCameraPos.mZ = pViewingCharacter->mPosition.mZ + 1700;
+
+		if(mLastCameraPosValid) {
+			lCameraPos.mX = (3 * lCameraPos.mX + mLastCameraPos.mX) / 4;
+			lCameraPos.mY = (3 * lCameraPos.mY + mLastCameraPos.mY) / 4;
+			lCameraPos.mZ = (2 * lCameraPos.mZ + mLastCameraPos.mZ) / 3;
+		}
+	}
+
+	mLastCameraPos = lCameraPos;
+	mLastCameraPosValid = TRUE;
+
+	m3DView.SetupCameraPosition(lCameraPos, lOrientation, mScroll);
+
+	// Clear background
+	if(pBackImage == NULL) {
+		m3DView.Clear(0);						  // Will have to be replace by a bitmapped background
+	}
+	else {
+		m3DView.RenderBackground(pBackImage);
+	}
+
+	m3DView.ClearZ();
+
+	int lCounter;
+
+	// Floor and ceiling drawing
+
+	int lTotalSections = lLevel->GetNbVisibleSurface(lRoom);
+	const Model::SectionId *lFloorList = lLevel->GetVisibleFloorList(lRoom);
+	const Model::SectionId *lCeilingList = lLevel->GetVisibleCeilingList(lRoom);
+
+	for(lCounter = 0; lCounter < lTotalSections; lCounter++) {
+		// Draw the floor
+		RenderFloorOrCeiling(lLevel, lFloorList[lCounter], TRUE, pTime);
+
+		// Render the ceiling
+		RenderFloorOrCeiling(lLevel, lCeilingList[lCounter], FALSE, pTime);
+
+	}
+
+	// Draw the walls and features of the visibles rooms
+
+	int lRoomCount;
+	const int *lRoomList = lLevel->GetVisibleZones(lRoom, lRoomCount);
+
+	for(lCounter = -1; lCounter < lRoomCount; lCounter++) {
+		int lRoomId;
+
+		if(lCounter == -1) {
+			lRoomId = lRoom;
+		}
+		else {
+			lRoomId = lRoomList[lCounter];
+		}
+
+		// Draw all the features
+
+		int lNbFeature = lLevel->GetFeatureCount(lRoomId);
+
+		for(int lCounter2 = 0; lCounter2 < lNbFeature; lCounter2++) {
+			RenderFeatureWalls(lLevel, lLevel->GetFeature(lRoomId, lCounter2), pTime);
+		}
+
+		RenderRoomWalls(lLevel, lRoomId, pTime);
+	}
+
+	// Draw all the elements of the visibles room
+	for(lCounter = -1; lCounter < lRoomCount; lCounter++) {
+		int lRoomId;
+
+		if(lCounter == -1) {
+			lRoomId = lRoom;
+		}
+		else {
+			lRoomId = lRoomList[lCounter];
+		}
+
+		MR_FreeElementHandle lHandle = lLevel->GetFirstFreeElement(lRoomId);
+
+		while(lHandle != NULL) {
+			Model::FreeElement *lElement = Model::Level::GetFreeElement(lHandle);
+
+			lElement->Render(&m3DView, pTime);
+
+			lHandle = Model::Level::GetNextFreeElement(lHandle);
+		}
+	}
+
+	// Display cockpit
+	int lXRes = m3DView.GetXRes();
+	int lYRes = m3DView.GetYRes();
+
+	// MissileLevel
+	std::shared_ptr<ObjFac1::SpriteHandle> lWeaponSprite;
+	int lWeaponSpriteIndex = 0;
+
+	if(pViewingCharacter->GetCurrentWeapon() == MainCharacter::MainCharacter::eMissile) {
+		lWeaponSprite = mMissileLevel;
+		lWeaponSpriteIndex = pViewingCharacter->GetMissileRefillLevel(mMissileLevel->GetSprite()->GetNbItem());
+	}
+	else if(pViewingCharacter->GetCurrentWeapon() == MainCharacter::MainCharacter::eMine) {
+		lWeaponSprite = mMineDisp;
+		lWeaponSpriteIndex = pViewingCharacter->GetMineCount();
+
+		if(lWeaponSpriteIndex > 0) {
+			lWeaponSpriteIndex = ((lWeaponSpriteIndex - 1) * 2) + 1;
+			if((pTime >> 9) & 1) {
+				lWeaponSpriteIndex++;
+			}
+		}
+	}
+	else if(pViewingCharacter->GetCurrentWeapon() == MainCharacter::MainCharacter::ePowerUp) {
+		lWeaponSprite = mPowerUpDisp;
+		lWeaponSpriteIndex = pViewingCharacter->GetPowerUpFraction(4);
+		if(lWeaponSpriteIndex == 0) {
+			lWeaponSpriteIndex = pViewingCharacter->GetPowerUpCount();
+		}
+		else {
+			lWeaponSpriteIndex = 9 - lWeaponSpriteIndex;
+		}
+
+	}
+
+	if (drawHud && lWeaponSprite != NULL) {
+		int lMissileScaling = 1 + (310 / lXRes);
+
+		lWeaponSprite->GetSprite()->Blt(lXRes, lYRes / 16, &m3DView, Sprite::eRight, Sprite::eTop, lWeaponSpriteIndex, lMissileScaling);
+	}
+
+	// Print text
+	if (drawHud && mBaseFont != NULL) {
+		char lStrBuffer[170];
+
+		const Sprite *lFont = mBaseFont->GetSprite();
+
+		// Display chat messages
+		int lFontScaling = 1 + (lFont->GetItemHeight() * 30) / (lYRes);
+		int lLineSpacing = lFont->GetItemHeight() / lFontScaling;
+
+		int lXMargin = 2 * lFont->GetItemWidth() / lFontScaling;
+		int lYMargin = lYRes - lYRes / 15 - lLineSpacing;
+		unsigned int lPrintLen = (unsigned int)((lXRes - lXMargin) * 3.9 / (lFont->GetItemWidth() * 3 / lFontScaling));
+		// subject to div/0
+
+		pSession->GetCurrentMessage(lStrBuffer);
+
+		if(lStrBuffer[0] != 0) {
+			lFont->StrBlt(lXMargin, lYMargin, lStrBuffer, &m3DView, Sprite::eLeft, Sprite::eTop, lFontScaling);
+		}
+		lYMargin -= lLineSpacing;
+
+		int lMaxDepth = (mMoreMessages && (mDispPlayers == 0)) ? 10 : 6;
+		int lMessageLife = (mMoreMessages && (mDispPlayers == 0)) ? MR_CHAT_EXPIRATION * 4 : MR_CHAT_EXPIRATION;
+
+		int lStackLevel = 0;
+		int lLineLevel = 0;
+		while(pSession->GetMessageStack(lStackLevel++, lStrBuffer, lMessageLife) && (lLineLevel < lMaxDepth) && (lYMargin > lYRes / 4)) {
+			size_t lStrLen = strlen(lStrBuffer);
+
+			if(lStrLen > lPrintLen) {
+				lFont->StrBlt(lXMargin, lYMargin, lStrBuffer + lPrintLen, &m3DView, Sprite::eLeft, Sprite::eTop, lFontScaling);
+				lYMargin -= lLineSpacing;
+				lStrBuffer[lPrintLen] = 0;
+				lLineLevel++;
+			}
+			lFont->StrBlt(lXMargin, lYMargin, lStrBuffer, &m3DView, Sprite::eLeft, Sprite::eTop, lFontScaling);
+			lYMargin -= lLineSpacing;
+			lLineLevel++;
+		}
+	}
+
+	if (drawHud && (mBaseFont != NULL) && mDispPlayers) {
+
+		int lNbResultAvail = pSession->ResultAvaillable();
+		int lNbPages = (lNbResultAvail + NB_PLAYER_PAGE - 1) / NB_PLAYER_PAGE;
+
+		int lCurrentPage = mDispPlayers = mDispPlayers % (lNbPages * 2 + 1);
+
+		if(mDispPlayers != 0) {
+			BOOL lShowHits = FALSE;
+
+			lCurrentPage--;
+
+			if(lCurrentPage >= lNbPages) {
+				lShowHits = TRUE;
+				lCurrentPage -= lNbPages;
+			}
+			// Display rank list
+			int lFirstPlayer = lCurrentPage * NB_PLAYER_PAGE;
+			int lLastPlayer = std::min(lFirstPlayer + NB_PLAYER_PAGE, lNbResultAvail);
+			int lFontScaling = 1 + (mBaseFont->GetSprite()->GetItemHeight() * 30) / (lYRes);
+			int lLineSpacing = mBaseFont->GetSprite()->GetItemHeight() / lFontScaling;
+
+			int lCurrentLine = lYRes / 6;
+
+			// Display banner
+
+			if(lShowHits) {
+				mBaseFont->GetSprite()->StrBlt(lXRes / 2, lCurrentLine, globalFmts.hitTitle.c_str(),
+					&m3DView, Sprite::eCenter, Sprite::eTop, lFontScaling);
+			}
+			else {
+				mBaseFont->GetSprite()->StrBlt(lXRes / 2, lCurrentLine, globalFmts.rankTitle.c_str(),
+					&m3DView, Sprite::eCenter, Sprite::eTop, lFontScaling);
+			}
+			lCurrentLine += lLineSpacing;
+
+			// Display list
+			for(int pi = lFirstPlayer; pi < lLastPlayer; pi++) {
+				char lBuffer[80];
+
+				const char *lPlayerName;
+				int lHoverId;
+				BOOL lConnected;
+				int lNbLap = 0;
+				MR_SimulationTime lFinishTime = 0;
+				MR_SimulationTime lBestLap = 0;
+				int lNbFor = 0;
+				int lNbAgain = 0;
+
+				if (lShowHits) {
+					pSession->GetHitResult(pi, lPlayerName, lHoverId,
+						lConnected, lNbFor, lNbAgain);
+				}
+				else {
+					pSession->GetResult(pi, lPlayerName, lHoverId,
+						lConnected, lNbLap, lFinishTime, lBestLap);
+				}
+
+				size_t lPlayerNameLen = std::min(strlen(lPlayerName),
+					static_cast<size_t>(10));
+
+				if (lShowHits) {
+					sprintf(lBuffer, globalFmts.hitChart.c_str(),
+						pi + 1, lPlayerName, lHoverId + 1,
+						10 - lPlayerNameLen, "", lNbFor, lNbAgain);
+				}
+				else if (lNbLap == 0) {
+					sprintf(lBuffer, globalFmts.firstLap.c_str(),
+						pi + 1, lPlayerName, lHoverId + 1,
+						10 - lPlayerNameLen, "", lConnected ? '*' : '-');
+
+				}
+				else if (lNbLap == -1) {
+					sprintf(lBuffer, globalFmts.chartFinish.c_str(),
+						pi + 1, lPlayerName, lHoverId + 1,
+						10 - lPlayerNameLen, "",
+						lFinishTime / 60000,
+						(lFinishTime % 60000) / 1000,
+						(lFinishTime % 1000), lBestLap / 60000,
+						(lBestLap % 60000) / 1000,
+						(lBestLap % 1000),
+						lConnected ? '*' : '-');
+				}
+				else {
+					sprintf(lBuffer, globalFmts.chart.c_str(),
+						pi + 1, lPlayerName, lHoverId + 1,
+						10 - lPlayerNameLen, "",
+						lNbLap + 1,
+						lBestLap / 60000,
+						(lBestLap % 60000) / 1000,
+						(lBestLap % 1000),
+						lConnected ? '*' : '-');
+				}
+
+				mBaseFont->GetSprite()->StrBlt(lXRes / 2,
+					lCurrentLine, Ascii2Simple(lBuffer), &m3DView,
+					Sprite::eCenter, Sprite::eTop, lFontScaling);
+				lCurrentLine += lLineSpacing;
+			}
+		}
+	}
+
+	/*TODO: Replace with modular HUD controlled from Lua.
+	if (drawHud && mBaseFont != NULL) {
+
+		// Display timers
+		char lMainLineBuffer[80];
+		char lLapLineBuffer[80];
+
+		lMainLineBuffer[0] = 0;
+		lLapLineBuffer[0] = 0;
+
+		if(pTime < 0) {
+			pTime = -pTime;
+			sprintf(lMainLineBuffer, globalFmts.countdown.c_str(), (pTime % 60000) / 1000, (pTime % 1000) / 10, pViewingCharacter->GetTotalLap());
+
+			int lFontScaling = 1 + (mBaseFont->GetSprite()->GetItemHeight() * 30) / (lYRes);
+			int lLineHeight = (mBaseFont->GetSprite()->GetItemHeight() / lFontScaling);
+
+			selectCraftTxt->Blt(lXRes / 2, lYRes / 16 + lLineHeight, &m3DView, true);
+
+			craftTxt->SetText(GetCraftName(pViewingCharacter->GetHoverModel()));
+			craftTxt->Blt(lXRes / 2, lYRes / 16 + lLineHeight + selectCraftTxt->GetHeight(), &m3DView, true);
+		}
+		else if (pViewingCharacter->HasFinish()) {
+			MR_SimulationTime lTotalTime = pViewingCharacter->GetTotalTime();
+			MR_SimulationTime lBestLap = pViewingCharacter->GetBestLapDuration();
+
+			// Race is finish
+			if(pSession->GetNbPlayers() > 1) {
+				sprintf(lMainLineBuffer, globalFmts.finish.c_str(), lTotalTime / 60000, (lTotalTime % 60000) / 1000, (lTotalTime % 1000), pSession->GetRank(pViewingCharacter), pSession->GetNbPlayers());
+			}
+			else {
+				sprintf(lMainLineBuffer, globalFmts.finishSingle.c_str(), lTotalTime / 60000, (lTotalTime % 60000) / 1000, (lTotalTime % 1000));
+			}
+			sprintf(lLapLineBuffer, globalFmts.bestLap.c_str(), lBestLap / 60000, (lBestLap % 60000) / 1000, (lBestLap % 1000));
+
+		}
+		else if(pViewingCharacter->GetLap() == 0) {
+			// First lap
+			sprintf(lMainLineBuffer, globalFmts.header.c_str(), pTime / 60000, (pTime % 60000) / 1000, (pTime % 1000) / 10, 1, pViewingCharacter->GetTotalLap());
+			// sprintf( lLapLineBuffer, "Current lap %d.%02d.%02d", pTime/60000, (pTime%60000)/1000, (pTime%1000) );
+
+		}
+		else if(pViewingCharacter->GetLastLapCompletion() > (pTime - 8000)) {
+			// Lap terminated less than 8 sec ago
+			MR_SimulationTime lBestLap = pViewingCharacter->GetBestLapDuration();
+			MR_SimulationTime lLastLap = pViewingCharacter->GetLastLapDuration();
+
+			// More than one lap completed
+			sprintf(lMainLineBuffer, globalFmts.header.c_str(), pTime / 60000, (pTime % 60000) / 1000, (pTime % 1000) / 10, pViewingCharacter->GetLap() + 1, pViewingCharacter->GetTotalLap());
+			sprintf(lLapLineBuffer, globalFmts.lastLap.c_str(), lLastLap / 60000, (lLastLap % 60000) / 1000, (lLastLap % 1000), lBestLap / 60000, (lBestLap % 60000) / 1000, (lBestLap % 1000));
+		}
+		else {
+			MR_SimulationTime lBestLap = pViewingCharacter->GetBestLapDuration();
+			MR_SimulationTime lCurrentLap = pTime - pViewingCharacter->GetLastLapCompletion();
+
+			// More than one lap completed
+			sprintf(lMainLineBuffer, globalFmts.header.c_str(), pTime / 60000, (pTime % 60000) / 1000, (pTime % 1000) / 10, pViewingCharacter->GetLap() + 1, pViewingCharacter->GetTotalLap());
+			sprintf(lLapLineBuffer, globalFmts.curLap.c_str(), lCurrentLap / 60000, (lCurrentLap % 60000) / 1000, (lCurrentLap % 1000), lBestLap / 60000, (lBestLap % 60000) / 1000, (lBestLap % 1000));
+
+		}
+
+		int lFontScaling = 1 + (mBaseFont->GetSprite()->GetItemHeight() * 30) / (lYRes);
+
+		mBaseFont->GetSprite()->StrBlt(lXRes / 2, lYRes / 16, Ascii2Simple(lMainLineBuffer), &m3DView, Sprite::eCenter, Sprite::eTop, lFontScaling);
+		mBaseFont->GetSprite()->StrBlt(lXRes / 2, lYRes - 1, Ascii2Simple(lLapLineBuffer), &m3DView, Sprite::eCenter, Sprite::eBottom, lFontScaling);
+
+	}
+	*/
+
+}
+
+void Observer::RenderRoomWalls(const Model::Level * pLevel, int lRoomId, MR_SimulationTime pTime)
+{
+	Model::PolygonShape *lSectionShape = pLevel->GetRoomShape(lRoomId);
+
+	auto lVertexCount = lSectionShape->VertexCount();
+
+	// Draw the walls
+	MR_3DCoordinate lP0;
+	MR_3DCoordinate lP1;
+
+	MR_Int32 lFloorLevel = lSectionShape->ZMin();
+	MR_Int32 lCeilingLevel = lSectionShape->ZMax();
+
+	lP0.mX = lSectionShape->X(0);
+	lP0.mY = lSectionShape->Y(0);
+
+	for(int lVertex = 0; lVertex < lVertexCount; lVertex++) {
+		auto lNext = lVertex + 1;
+
+		if(lNext == lVertexCount) {
+			lNext = 0;
+		}
+
+		lP1.mX = lSectionShape->X(lNext);
+		lP1.mY = lSectionShape->Y(lNext);
+
+		Model::SurfaceElement *lElement =
+			pLevel->GetRoomWallElement(lRoomId, static_cast<size_t>(lVertex));
+
+		if(lElement != NULL) {
+			int lNeighbor = pLevel->GetNeighbor(lRoomId, lVertex);
+
+			if(lNeighbor == -1) {
+				lP0.mZ = lCeilingLevel;
+				lP1.mZ = lFloorLevel;
+
+				lElement->RenderWallSurface(&m3DView, lP0, lP1, pLevel->GetRoomWallLen(lRoomId, lVertex), pTime);
+			}
+			else {
+				MR_Int32 lNeighborFloor = pLevel->GetRoomBottomLevel(lNeighbor);
+				MR_Int32 lNeighborCeiling = pLevel->GetRoomTopLevel(lNeighbor);
+
+				if(lFloorLevel < lNeighborFloor) {
+					lP0.mZ = lNeighborFloor;
+					lP1.mZ = lFloorLevel;
+
+					lElement->RenderWallSurface(&m3DView, lP0, lP1, pLevel->GetRoomWallLen(lRoomId, lVertex), pTime);
+				}
+
+				if(lCeilingLevel > lNeighborCeiling) {
+					lP0.mZ = lCeilingLevel;
+					lP1.mZ = lNeighborCeiling;
+
+					lElement->RenderWallSurface(&m3DView, lP0, lP1, pLevel->GetRoomWallLen(lRoomId, lVertex), pTime);
+				}
+			}
+		}
+
+		lP0.mX = lP1.mX;
+		lP0.mY = lP1.mY;
+
+	}
+
+	delete lSectionShape;
+}
+
+void Observer::RenderFeatureWalls(const Model::Level * pLevel, int lFeatureId, MR_SimulationTime pTime)
+{
+	Model::PolygonShape *lSectionShape = pLevel->GetFeatureShape(lFeatureId);
+
+	int lVertexCount = lSectionShape->VertexCount();
+
+	// Draw the walls
+	MR_3DCoordinate lP0;
+	MR_3DCoordinate lP1;
+
+	lP0.mZ = lSectionShape->ZMax();
+
+	lP1.mX = lSectionShape->X(0);
+	lP1.mY = lSectionShape->Y(0);
+	lP1.mZ = lSectionShape->ZMin();
+
+	for(int lVertex = 0; lVertex < lVertexCount; lVertex++) {
+		int lNext = lVertex + 1;
+
+		if(lNext == lVertexCount) {
+			lNext = 0;
+		}
+
+		lP0.mX = lSectionShape->X(lNext);
+		lP0.mY = lSectionShape->Y(lNext);
+
+		Model::SurfaceElement *lElement =
+			pLevel->GetFeatureWallElement(lFeatureId,
+				static_cast<size_t>(lVertex));
+
+		if(lElement != NULL) {
+			lElement->RenderWallSurface(&m3DView, lP0, lP1, pLevel->GetFeatureWallLen(lFeatureId, lVertex), pTime);
+		}
+
+		lP1.mX = lP0.mX;
+		lP1.mY = lP0.mY;
+	}
+
+	delete lSectionShape;
+}
+
+void Observer::RenderFloorOrCeiling(const Model::Level * pLevel, const Model::SectionId & pSectionId, BOOL pFloor, MR_SimulationTime pTime)
+{
+	int lCounter;
+
+	MR_Int32 lLevel;
+	int lNbVertex;
+	MR_2DCoordinate lVertexList[MR_MAX_POLYGON_VERTEX];
+
+	Model::PolygonShape *lShape;
+	Model::SurfaceElement *lElement;
+
+	// Extract the surface geometry
+	if(pSectionId.mType == Model::SectionId::eRoom) {
+		lShape = pLevel->GetRoomShape(pSectionId.mId);
+		if(pFloor) {
+			lLevel = lShape->ZMin();
+			lElement = pLevel->GetRoomBottomElement(pSectionId.mId);
+		}
+		else {
+			lLevel = lShape->ZMax();
+			lElement = pLevel->GetRoomTopElement(pSectionId.mId);
+		}
+	}
+	else {
+		lShape = pLevel->GetFeatureShape(pSectionId.mId);
+
+		if(!pFloor) {
+			lLevel = lShape->ZMin();
+			lElement = pLevel->GetFeatureBottomElement(pSectionId.mId);
+		}
+		else {
+			lLevel = lShape->ZMax();
+			lElement = pLevel->GetFeatureTopElement(pSectionId.mId);
+		}
+	}
+
+	if(lElement != NULL) {
+		lNbVertex = lShape->VertexCount();
+
+		for(lCounter = 0; lCounter < lNbVertex; lCounter++) {
+			lVertexList[lCounter].mX = lShape->X(lCounter);
+			lVertexList[lCounter].mY = lShape->Y(lCounter);
+		}
+
+		lElement->RenderHorizontalSurface(&m3DView, lNbVertex, lVertexList, lLevel, !pFloor, pTime);
+	}
+
+	delete lShape;
+}
+
+void Observer::RenderDebugDisplay(VideoServices::VideoBuffer * pDest, const ClientSession *pSession, const MainCharacter::MainCharacter * pViewingCharacter, MR_SimulationTime pTime, const MR_UInt8 * pBackImage)
+{
+	using Cell = Display::HudCell;
+
+	int lXRes = pDest->GetWidth();
+	int lYRes = pDest->GetHeight();
+	int lYOffset = 0;
+	int lXOffset = 0;
+
+	switch (splitMode) {
+		case Cell::FILL:
+		case Cell::NW:
+		case Cell::NE:
+		case Cell::SW:
+		case Cell::SE:
+			// Nothing to do.
+			break;
+
+		case Cell::N:
+			lYRes /= 2;
+			break;
+
+		case Cell::S:
+			lYRes /= 2;
+			lYOffset = lYRes;
+			break;
+
+		case Cell::W:
+			lXRes /= 2;
+			break;
+
+		case Cell::E:
+			lXRes /= 2;
+			lXOffset = lXRes;
+			break;
+
+		default:
+			throw UnimplementedExn("Observer::RenderDebugDisplay: Cell type: " +
+				boost::lexical_cast<std::string>(splitMode));
+	}
+
+	mWireFrameView.Setup(pDest, lXOffset, lYOffset, lXRes / 2, lYRes / 2, mApperture);
+	m3DView.Setup(pDest, lXOffset, lYOffset + lYRes / 2, lXRes / 2, lYRes / 2, mApperture);
+	m2DDebugView.Setup(pDest, lXRes / 2, lYOffset, lXRes / 2, lYRes);
+
+	if(pViewingCharacter->mRoom != -1) {
+		const Model::Level *lLevel = pSession->GetCurrentLevel();
+
+		Render2DDebugView(pDest, lLevel, pViewingCharacter);
+		RenderWireFrameView(lLevel, pViewingCharacter);
+		Render3DView(pSession, pViewingCharacter, pTime, pBackImage);
+	}
+
+}
+
+void Observer::RenderNormalDisplay(VideoServices::VideoBuffer * pDest, const ClientSession *pSession, const MainCharacter::MainCharacter * pViewingCharacter, MR_SimulationTime pTime, const MR_UInt8 * pBackImage)
+{
+	using Cell = Display::HudCell;
+
+	int lXRes = pDest->GetWidth();
+	int lYRes = pDest->GetHeight();
+	int lYOffset = 0;
+	int lXOffset = 0;
+	int lYMargin_1024 = mYMargin_1024;
+	int lXMargin_1024 = mXMargin_1024;
+
+	switch (splitMode) {
+		case Cell::FILL:
+			// No adjustment.
+			break;
+
+		case Cell::N:
+			lYRes /= 2;
+			lYMargin_1024 -= 200;
+			if(lYMargin_1024 < 0) {
+				lYMargin_1024 = 0;
+			}
+			break;
+
+		case Cell::S:
+			lYRes /= 2;
+			lYOffset = lYRes;
+			lYMargin_1024 -= 200;
+			if(lYMargin_1024 < 0) {
+				lYMargin_1024 = 0;
+			}
+			break;
+
+		case Cell::W:
+			lXRes /= 2;
+			lXMargin_1024 -= 200;
+			if(lXMargin_1024 < 0) {
+				lXMargin_1024 = 0;
+			}
+			break;
+
+		case Cell::E:
+			lXRes /= 2;
+			lXOffset = lXRes;
+			lXMargin_1024 -= 200;
+			if(lXMargin_1024 < 0) {
+				lXMargin_1024 = 0;
+			}
+			break;
+
+		case Cell::NW:
+			lYRes /= 2;
+			lXRes /= 2;
+			lYMargin_1024 -= 200;
+			lXMargin_1024 -= 200;
+			if(lYMargin_1024 < 0) {
+				lYMargin_1024 = 0;
+			}
+			if(lXMargin_1024 < 0) {
+				lXMargin_1024 = 0;
+			}
+			break;
+
+		case Cell::NE:
+			lYRes /= 2;
+			lXRes /= 2;
+			lXOffset = lXRes;
+			lYMargin_1024 -= 200;
+			lXMargin_1024 -= 200;
+			if(lYMargin_1024 < 0) {
+				lYMargin_1024 = 0;
+			}
+			if(lXMargin_1024 < 0) {
+				lXMargin_1024 = 0;
+			}
+			break;
+
+		case Cell::SW:
+			lYRes /= 2;
+			lXRes /= 2;
+			lYOffset = lYRes;
+			lYMargin_1024 -= 200;
+			lXMargin_1024 -= 200;
+			if(lYMargin_1024 < 0) {
+				lYMargin_1024 = 0;
+			}
+			if(lXMargin_1024 < 0) {
+				lXMargin_1024 = 0;
+			}
+			break;
+
+		case Cell::SE:
+			lYRes /= 2;
+			lXRes /= 2;
+			lYOffset = lYRes;
+			lXOffset = lXRes;
+			lYMargin_1024 -= 200;
+			lXMargin_1024 -= 200;
+			if(lYMargin_1024 < 0) {
+				lYMargin_1024 = 0;
+			}
+			if(lXMargin_1024 < 0) {
+				lXMargin_1024 = 0;
+			}
+			break;
+
+		default:
+			throw UnimplementedExn(
+				"Observer::RenderNormalDisplay: Cell type: " +
+					boost::lexical_cast<std::string>(splitMode));
+	}
+
+												  // rounded to 32 bit boundary for best performances
+	int lXMargin = static_cast<int>(
+		static_cast<MR_UInt32>(mXMargin_1024 * lXRes / 1024) & 0xFFFFFFFCu);
+	int lYMargin = lYMargin_1024 * lYRes / 1024;
+
+	m3DView.Setup(pDest, lXOffset + lXMargin, lYOffset + lYMargin, lXRes - 2 * lXMargin, lYRes - 2 * lYMargin, mApperture);
+
+	if(pViewingCharacter->mRoom != -1) {
+		Render3DView(pSession, pViewingCharacter, pTime, pBackImage);
+	}
+}
+
+void Observer::PlaySounds(const Model::Level * pLevel, MainCharacter::MainCharacter * pViewingCharacter)
+{
+	// Play the sound of all moving elemnts arround
+
+	int lCurrentRoom = pViewingCharacter->mRoom;
+	int lNeighborCount = pLevel->GetRoomVertexCount(lCurrentRoom);
+
+	for(int lCounter = -1; lCounter < lNeighborCount; lCounter++) {
+		int lRoomId;
+
+		if(lCounter == -1) {
+			lRoomId = lCurrentRoom;
+		}
+		else {
+			lRoomId = pLevel->GetNeighbor(lCurrentRoom, lCounter);
+		}
+
+		if(lRoomId != -1) {
+			MR_FreeElementHandle lHandle = pLevel->GetFirstFreeElement(lRoomId);
+
+			while(lHandle != NULL) {
+				Model::FreeElement *lElement = Model::Level::GetFreeElement(lHandle);
+
+				if(lElement != pViewingCharacter) {
+					double lXDist = pViewingCharacter->mPosition.mX - lElement->mPosition.mX;
+					double lYDist = pViewingCharacter->mPosition.mY - lElement->mPosition.mY;
+
+					int lDB = (int)(-sqrt(lXDist * lXDist + lYDist * lYDist) / 15.0);
+
+					lElement->PlayExternalSounds(lDB, 0);
+				}
+
+				lHandle = Model::Level::GetNextFreeElement(lHandle);
+			}
+		}
+	}
+
+	pViewingCharacter->PlayInternalSounds();
+}
+
+}  // namespace Client
+}  // namespace HoverRace

@@ -1,0 +1,22 @@
+[
+  {
+    "name": "ClassicH",
+    "file": "ClassicH.json",
+    "description": "Level: Easy\nLength: 0.6 km\nShort and fast track\nLots of curve and no jumps\n\n"
+  },
+  {
+    "name": "Steeplechase",
+    "file": "Steeplechase.json",
+    "description": "Level: Medium\nLength: 0.6 km\nLot of jumps\n"
+  },
+  {
+    "name": "The Alley2",
+    "file": "The Alley2.json",
+    "description": "Level: Expert\nLength: 3.2km\nLot of speed zones\n"
+  },
+  {
+    "name": "The River",
+    "file": "The River.json",
+    "description": "Level: Expert\nLength: 1.0 km\nLots of shortcuts\n\n\n"
+  }
+]

@@ -1,0 +1,594 @@
+
+// FlexGrid.cpp
+//
+// Copyright (c) 2014-2016 Michael Imamura.
+//
+// Licensed under GrokkSoft HoverRace SourceCode License v1.0(the "License");
+// you may not use this file except in compliance with the License.
+//
+// A copy of the license should have been attached to the package from which
+// you have taken this file. If you can not find the license you can not use
+// this file.
+//
+//
+// The author makes no representations about the suitability of
+// this software for any purpose.  It is provided "as is" "AS IS",
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+// implied.
+//
+// See the License for the specific language governing permissions
+// and limitations under the License.
+
+#include <cmath>
+
+#include "../Util/Log.h"
+#include "../Exception.h"
+
+#include "FlexGrid.h"
+
+namespace HoverRace {
+namespace Display {
+
+namespace {
+
+void ScaleDimension(std::vector<double> &measured, double desired,
+                    double padding, double margin)
+{
+	double num = (double)measured.size();
+	double spaces = (padding * num) + (margin * (num - 1));
+
+	double totalMeasured = 0;
+	for (auto cell : measured) totalMeasured += cell;
+	totalMeasured -= spaces;
+
+	double desiredTotal = desired - spaces;
+
+	double scale = desiredTotal / totalMeasured;
+
+	for (auto &cell: measured) cell *= scale;
+}
+
+}  // namespace
+
+/**
+ * Indicator that the dimension of the column or table is automatic
+ * (instead of fixed).
+ */
+const double FlexGrid::AUTOSIZE = std::numeric_limits<double>::quiet_NaN();
+
+const size_t FlexGrid::BOTTOM = std::numeric_limits<size_t>::max();
+const size_t FlexGrid::RIGHT = std::numeric_limits<size_t>::max();
+
+/**
+ * Constructor.
+ * @param display The display child elements will be attached to.
+ * @param layoutFlags Optional layout flags.
+ */
+FlexGrid::FlexGrid(Display &display, uiLayoutFlags_t layoutFlags) :
+	SUPER(display, layoutFlags),
+	margin(display.styles.gridMargin), padding(display.styles.gridPadding),
+	size(0, 0), fixedSize(AUTOSIZE, AUTOSIZE), colReserve(0), focusedCell()
+{
+}
+
+void FlexGrid::OnChildRequestedFocus(UiViewModel &child)
+{
+	if (!IsFocused()) {
+		RequestFocus();
+	}
+
+	if (IsFocused()) {
+		// Switch focus to the new child, if possible.
+		if (focusedCell) {
+			rows[focusedCell->first][focusedCell->second]->DropFocus();
+			focusedCell = boost::none;
+		}
+		if (child.TryFocus()) {
+			//TODO: Track focus on the cell, and track coords in the cell.
+			focusedCell = FindChild(&child);
+			SetFocused(true);
+		}
+		else {
+			// The child that requested focus refused to take the focus.
+			RelinquishFocus(Control::Nav::NEUTRAL);
+		}
+	}
+}
+
+void FlexGrid::OnChildRelinquishedFocus(UiViewModel&, const Control::Nav &nav)
+{
+	using Nav = Control::Nav;
+
+	if (!focusedCell) {
+		RelinquishFocus(nav);
+		return;
+	}
+	auto row = focusedCell->first;
+	auto col = focusedCell->second;
+	rows[row][col]->DropFocus();
+	focusedCell = boost::none;
+
+	auto dir = nav.AsDigital();
+	switch (dir) {
+		case Nav::NEUTRAL:
+			RelinquishFocus(nav);
+			break;
+
+		case Nav::UP:
+			if (!FocusUpFrom(row, col, nav)) {
+				RelinquishFocus(nav);
+			}
+			break;
+
+		case Nav::DOWN:
+			if (!FocusDownFrom(row, col, nav)) {
+				RelinquishFocus(nav);
+			}
+			break;
+
+		case Nav::LEFT:
+			if (!FocusLeftFrom(row, col, nav)) {
+				RelinquishFocus(nav);
+			}
+			break;
+
+		case Nav::RIGHT:
+			if (!FocusRightFrom(row, col, nav)) {
+				RelinquishFocus(nav);
+			}
+			break;
+
+		case Nav::PREV:
+			if (!FocusPrevFrom(row, col, nav)) {
+				RelinquishFocus(nav);
+			}
+			break;
+
+		case Nav::NEXT:
+			if (!FocusNextFrom(row, col, nav)) {
+				RelinquishFocus(nav);
+			}
+			break;
+
+		default:
+			throw UnimplementedExn(boost::str(boost::format(
+				"FlexGrid::OnChildRelinquishedFocus(%s)") % nav));
+	}
+}
+
+void FlexGrid::SetFocusedCell(size_t row, size_t col)
+{
+	focusedCell = std::make_pair(row, col);
+	SetFocused(true);
+}
+
+bool FlexGrid::FocusUpFrom(size_t row, size_t col, const Control::Nav &nav)
+{
+	return FocusFrom(row, col, nav, [&](size_t &r, size_t&) -> bool {
+		if (r == 0) return false;
+		--r;
+		return true;
+	});
+}
+
+bool FlexGrid::FocusDownFrom(size_t row, size_t col, const Control::Nav &nav)
+{
+	return FocusFrom(row, col, nav, [&](size_t &r, size_t&) -> bool {
+		r++;
+		return r != rows.size();
+	});
+}
+
+bool FlexGrid::FocusLeftFrom(size_t row, size_t col, const Control::Nav &nav)
+{
+	return FocusFrom(row, col, nav, [&](size_t&, size_t &c) -> bool {
+		if (c == 0) return false;
+		--c;
+		return true;
+	});
+}
+
+bool FlexGrid::FocusRightFrom(size_t row, size_t col, const Control::Nav &nav)
+{
+	return FocusFrom(row, col, nav, [&](size_t &r, size_t &c) -> bool {
+		c++;
+		return c != rows[r].size();
+	});
+}
+
+bool FlexGrid::FocusNextFrom(size_t row, size_t col, const Control::Nav &nav)
+{
+	return FocusFrom(row, col, nav, [&](size_t &r, size_t &c) -> bool {
+		c++;
+		if (c >= rows[r].size()) {
+			do {
+				r++;
+				if (r >= rows.size()) return false;
+			} while (rows[r].empty());
+			c = 0;
+		}
+		return true;
+	});
+}
+
+bool FlexGrid::FocusPrevFrom(size_t row, size_t col, const Control::Nav &nav)
+{
+	return FocusFrom(row, col, nav, [&](size_t &r, size_t &c) -> bool {
+		if (c == 0) {
+			do {
+				if (r == 0) return false;
+				r--;
+			} while (rows[r].empty());
+			c = rows[r].size() - 1;
+		}
+		else {
+			c--;
+		}
+		return true;
+	});
+}
+
+bool FlexGrid::TryFocus(const Control::Nav &nav)
+{
+	using Nav = Control::Nav;
+
+	if (IsFocused()) return true;
+	if (IsEmpty() || !IsVisible()) return false;
+
+	// Starting cell to begin the search for a focusable widget.
+	size_t row, col;
+
+	auto dir = nav.AsDigital();
+
+	auto iter = focusHints.find(dir);
+	if (iter != focusHints.end()) {
+		std::tie(row, col) = iter->second;
+		row = std::min(row, rows.size() - 1);
+		col = std::min(col, defaultCols.size() - 1);
+	}
+	else {
+		switch (dir) {
+			case Nav::NEUTRAL:
+			case Nav::DOWN:
+			case Nav::RIGHT:
+			case Nav::NEXT:
+				row = 0;
+				col = 0;
+				break;
+
+			case Nav::UP:
+				row = rows.size() - 1;
+				col = 0;
+				break;
+
+			case Nav::LEFT:
+				row = 0;
+				col = defaultCols.size() - 1;
+				break;
+
+			case Nav::PREV:
+				row = rows.size() - 1;
+				col = defaultCols.size() - 1;
+				break;
+
+			default:
+				throw UnimplementedExn(boost::str(
+					boost::format("FlexGrid::TryFocus: Unhandled: %s") % nav));
+		}
+	}
+
+	auto &cols = rows[row];
+	if (col < cols.size()) {
+		auto &cell = cols[col];
+		if (cell && cell->TryFocus(nav)) {
+			SetFocusedCell(row, col);
+			return true;
+		}
+	}
+
+	// Search for a focusable cell.
+	switch (dir) {
+		case Nav::UP:
+			return FocusUpFrom(row, col, nav);
+
+		case Nav::DOWN:
+			return FocusDownFrom(row, col, nav);
+
+		case Nav::LEFT:
+			return FocusLeftFrom(row, col, nav);
+
+		case Nav::RIGHT:
+			return FocusRightFrom(row, col, nav);
+
+		case Nav::PREV:
+			return FocusPrevFrom(row, col, nav);
+
+		case Nav::NEUTRAL:
+		case Nav::NEXT:
+			return FocusNextFrom(row, col, nav);
+
+		default:
+			throw UnimplementedExn(boost::str(
+				boost::format("FlexGrid::TryFocus: Unhandled: %s") % nav));
+	}
+}
+
+void FlexGrid::DropFocus()
+{
+	if (focusedCell) {
+		rows[focusedCell->first][focusedCell->second]->DropFocus();
+		focusedCell = boost::none;
+	}
+	SUPER::DropFocus();
+}
+
+void FlexGrid::SetMargin(double width, double height)
+{
+	if (margin.x != width || margin.y != height) {
+		margin.x = width;
+		margin.y = height;
+
+		FireModelUpdate(Props::MARGIN);
+		RequestLayout();
+	}
+}
+
+void FlexGrid::SetPadding(double width, double height)
+{
+	if (padding.x != width || padding.y != height) {
+		padding.x = width;
+		padding.y = height;
+
+		FireModelUpdate(Props::MARGIN);
+		RequestLayout();
+	}
+}
+
+bool FlexGrid::IsFixedWidth() const
+{
+	return std::isnan(fixedSize.x) == 0;
+}
+
+bool FlexGrid::IsFixedHeight() const
+{
+	return std::isnan(fixedSize.y) == 0;
+}
+
+void FlexGrid::SetFixedSize(double w, double h)
+{
+	SetFixedWidth(w);
+	SetFixedHeight(h);
+}
+
+void FlexGrid::SetFixedWidth(double w)
+{
+	fixedSize.x = w;
+	RequestLayout();
+}
+
+void FlexGrid::SetFixedHeight(double h)
+{
+	fixedSize.y = h;
+	RequestLayout();
+}
+
+/**
+ * Get the focus hint for a given focus navigation direction.
+ * @param nav The navigation direction.
+ * @return The cell coordinates, if set.
+ */
+boost::optional<std::pair<size_t, size_t>> FlexGrid::GetFocusHint(
+	const Control::Nav &nav)
+{
+	auto iter = focusHints.find(nav.AsDigital());
+	return iter == focusHints.end() ?
+		boost::none :
+		boost::make_optional(iter->second);
+}
+
+/**
+ * Set a hint about what cell to focus when this grid is focused.
+ *
+ * When the grid takes focus, the grid searches for a focusable cell.
+ * This automatic search may not produce results which are "natural" for the
+ * grid position, so this provides a way to set a hint about what cell to
+ * start the search from.
+ *
+ * Because the size of the grid can change, the constants BOTTOM and RIGHT
+ * can be used to refer to bottommost or rightmost row or column, respectively.
+ *
+ * @param nav The navigation direction.
+ * @param row The row (may be BOTTOM to refer to the bottom row).
+ * @param col The col.
+ */
+void FlexGrid::SetFocusHint(const Control::Nav &nav, size_t row, size_t col)
+{
+	focusHints[nav.AsDigital()] = std::make_pair(row, col);
+}
+
+/**
+ * Clears the focus hint for a navigation direction.
+ * @param nav The navigation.
+ */
+void FlexGrid::ClearFocusHint(const Control::Nav &nav)
+{
+	focusHints.erase(nav.AsDigital());
+}
+
+/**
+ * Adjust the cell origin position to the position of the contents,
+ * based on the contents' alignment.
+ * @param x The upper-left corner of the cell, relative to the grid.
+ * @param y The upper-left corner of the cell, relative to the grid.
+ * @param w The width of the cell, not including padding.
+ * @param h The height of the cell, not including padding.
+ * @param alignment The alignment of the cell contents.
+ * @return The adjusted position.
+ */
+Vec2 FlexGrid::AlignCellContents(double x, double y, double w, double h,
+                                 Alignment alignment)
+{
+	switch (alignment) {
+		case Alignment::NW: return Vec2(x, y);
+		case Alignment::N: return Vec2(x + (w / 2.0), y);
+		case Alignment::NE: return Vec2(x + w, y);
+		case Alignment::E: return Vec2(x + w, y + (h / 2.0));
+		case Alignment::SE: return Vec2(x + w, y + h);
+		case Alignment::S: return Vec2(x + (w / 2.0), y + h);
+		case Alignment::SW: return Vec2(x, y + h);
+		case Alignment::W: return Vec2(x, y + (h / 2.0));
+		case Alignment::CENTER: return Vec2(x + (w / 2.0), y + (h / 2.0));
+		default:
+			throw Exception("Unknown alignment: " +
+				boost::lexical_cast<std::string>(static_cast<int>(alignment)));
+	}
+}
+
+/**
+ * Find the coordinates of a child widget.
+ * @param child The widget to search for (may be @c nullptr).
+ * @return The coordinates (row, col) if found.
+ */
+boost::optional<std::pair<size_t, size_t>> FlexGrid::FindChild(
+	UiViewModel *child) const
+{
+	for (size_t row = 0; row < rows.size(); row++) {
+		auto &cols = rows[row];
+		for (size_t col = 0; col < cols.size(); col++) {
+			auto &cell = cols[col];
+			if (cell && cell->Contains(child)) {
+				return std::make_pair(row, col);
+			}
+		}
+	}
+	return boost::none;
+}
+
+void FlexGrid::Clear()
+{
+	if (focusedCell) {
+		rows[focusedCell->first][focusedCell->second]->DropFocus();
+		focusedCell = boost::none;
+		RelinquishFocus(Control::Nav::NEUTRAL);
+	}
+
+	defaultCols.clear();
+	rows.clear();
+
+	SUPER::Clear();
+}
+
+/**
+ * Set a hint about how many rows and columns will be in the grid.
+ *
+ * The internal capacity will be increased (never decreased).
+ * This is useful as a hint to prevent re-allocation due to resizing the
+ * internal storage.
+ *
+ * This function assumes that every cell of the grid will be filled.
+ * If the grid is sparse, then it is better to not call this function and
+ * let the automatic resizing occur.
+ *
+ * @param rowCapacity The estimated number of rows.
+ * @param colCapacity The estimated number of columns per row.
+ */
+void FlexGrid::Reserve(size_t rowCapacity, size_t colCapacity)
+{
+	size_t newCap =
+		(rowCapacity != 0 &&
+			(std::numeric_limits<size_t>::max() / rowCapacity) < colCapacity) ?
+		std::numeric_limits<size_t>::max() :
+		static_cast<size_t>(rowCapacity * colCapacity);
+
+	SUPER::Reserve(newCap);
+
+	rows.reserve(rowCapacity);
+	defaultCols.reserve(colCapacity);
+
+	colReserve = colCapacity;
+	for (auto &cols : rows) {
+		cols.reserve(colCapacity);
+	}
+}
+
+void FlexGrid::Layout()
+{
+	std::vector<double> heights(rows.size(), 0.0);
+	std::vector<double> widths(defaultCols.size(), 0.0);
+	Vec2 totalSize(0, 0);
+
+	Vec2 padding2x = padding;
+	padding2x *= 2;
+
+	// First, measure each of the cells to determine the height of each row
+	// and width of each column.
+	auto heightIter = heights.begin();
+	auto widthIter = widths.begin();
+	for (auto &cols : rows) {
+		for (auto &cell : cols) {
+			if (cell) {
+				Vec3 size = cell->Measure();
+				size += padding2x;
+
+				if (size.x > *widthIter) {
+					*widthIter = size.x;
+				}
+				if (size.y > *heightIter) {
+					*heightIter = size.y;
+				}
+			}
+			++widthIter;
+		}
+
+		++heightIter;
+		widthIter = widths.begin();
+	}
+
+	// If a fixed size is set, then scale the dimensions.
+	if (IsFixedWidth()) {
+		ScaleDimension(widths, fixedSize.x, padding.x, margin.x);
+	}
+	if (IsFixedHeight()) {
+		ScaleDimension(heights, fixedSize.y, padding.y, margin.y);
+	}
+
+	// Move each cell contents into position.
+	heightIter = heights.begin();
+	widthIter = widths.begin();
+	double x = 0;
+	double y = 0;
+	for (auto &cols : rows) {
+		for (auto &cell : cols) {
+			if (cell) {
+				cell->SetExtents(x, y, *widthIter, *heightIter,
+					padding.x, padding.y);
+			}
+			x += *widthIter + padding2x.x;
+			if (x > totalSize.x) {
+				totalSize.x = x;
+			}
+			x += margin.x;
+			++widthIter;
+		}
+
+		y += *heightIter + padding2x.y;
+		totalSize.y = y;
+		y += margin.y;
+		++heightIter;
+		x = 0;
+		widthIter = widths.begin();
+	}
+
+	// Update the calculated size of the grid.
+	size = totalSize;
+	SUPER::SetSize(totalSize);
+}
+
+Vec3 FlexGrid::Measure()
+{
+	PrepareRender();
+	return size.Promote();
+}
+
+}  // namespace Display
+}  // namespace HoverRace

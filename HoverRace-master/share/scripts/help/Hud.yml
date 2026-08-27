@@ -1,0 +1,76 @@
+add_chronometer:
+  type: method
+  sig:
+    - chronometer = hud:add_chronometer(alignment, title, clock)
+  brief: >
+    Add a clock display to the HUD.
+  desc: >
+    The clock must be a Clock object, such as session.clock.
+
+    The title may be a blank string.
+  examples:
+    - hud:add_chronometer(Hud.S, "Time", session.clock)
+
+add_counter:
+  type: method
+  sig:
+    - counter = hud:add_counter(alignment, title, initValue)
+    - counter = hud:add_counter(alignment, title, initValue, total)
+  brief: >
+    Add a generic counter (for lap number, score, etc.) to the HUD.
+  desc: >
+    The counter is displayed as "title value / total".
+
+    The title may be a blank string.  The value and total are numbers.
+    If no total is specified, then the total is hidden.
+    
+    The value may be updated later using the "value" property.
+  examples:
+    - |
+      local ctr = hud:add_counter(Hud.S, "Lap", 1, 5)
+      ctr.value = 3
+
+add_fuel_gauge:
+  type: method
+  sig:
+    - fuel_gauge = hud:add_fuel_gauge(alignment)
+  brief: >
+    Add a fuel indicator to the HUD.
+  examples:
+    - hud:add_fuel_gauge(Hud.NE)
+
+add_minimap:
+  type: method
+  sig:
+    - minimap = hud:add_minimap(alignment)
+  brief: >
+    Add a miniature map of the track.
+  examples:
+    - hud:add_minimap(Hud.WNW)
+
+add_speedometer:
+  type: method
+  sig:
+    - speedometer = hud:add_speedometer(alignment)
+  brief: >
+    Add speed indicators to the HUD.
+  examples:
+    - hud:add_speedometer(Hud.NW)
+
+add_text:
+  type: method
+  sig:
+    - hud:add_text(alignment, text)
+  brief: >
+    Add arbitrary text to the HUD.
+  examples:
+    - hud:add_text(Hud.ABOVE, "Finished!")
+
+use_race_default:
+  type: method
+  sig:
+    - hud:reset_to_default()
+  brief: >
+    Set up the HUD to use the defaults for a race.
+  desc: >
+    This will clear the current HUD and add a speedometer and fuel meter.

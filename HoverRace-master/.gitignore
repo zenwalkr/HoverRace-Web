@@ -1,0 +1,57 @@
+.dirstamp
+.ruby-version
+.suo
+.vim-template*
+.vimrc
+.vs
+*~
+*.bak
+*.swo
+*.swp
+*.tmp
+*.user
+=template.*
+Thumbs.db
+desktop.ini
+
+# /
+/*.log
+/*.old
+/build
+/build-*
+/cppcheck_report.txt
+/cscope.out
+/hoverrace-*
+/memory_leak_report.txt
+/valgrind_report.txt
+/init.lua
+
+# /hovercad/
+/hovercad/*.aps
+/hovercad/*.ncb
+/hovercad/*.sdf
+/hovercad/*.suo
+/hovercad/*.trk
+/hovercad/Debug
+/hovercad/Release
+
+# /lib/
+/lib/*.exp
+/lib/*.ilk
+/lib/*.pdb
+
+# /po/
+/po/*.mo
+/po/*.pot
+
+# /share/
+/share/*.db
+/share/locale
+
+# /srcdoc/
+/srcdoc/html/
+/srcdoc/warnings.txt
+
+# /updater/
+/updater/Debug
+/updater/Release
