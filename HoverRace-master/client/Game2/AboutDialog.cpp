@@ -98,7 +98,7 @@ BOOL CALLBACK AboutDialog::DlgFunc(HWND pWindow, UINT pMsgId, WPARAM pWParam, LP
 					"\r\n" <<
 					_("visit us at") << " " << HR_WEBSITE << "\r\n"
 					"\r\n"
-					"HoverRace ï¿½ Richard Langlois, Grokksoft Inc.\r\n"
+					"HoverRace © Richard Langlois, Grokksoft Inc.\r\n"
 					"\r\n" <<
 					_("Thanks also to the following projects") << ":\r\n"
 					"\r\n"
