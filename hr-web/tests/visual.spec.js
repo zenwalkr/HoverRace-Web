@@ -93,8 +93,14 @@ test('renders the original motor-on craft frames while driving', async ({ page }
   await page.goto('/?autostart=1&skipCountdown=1');
   await page.waitForFunction(() => document.documentElement.dataset.ready === 'true', null, { timeout: 30_000 });
   await expect(page.locator('html')).toHaveAttribute('data-audio-backend', 'web-audio');
+  await expect(page.locator('#resource-hud')).toBeVisible();
+  await expect(page.locator('#fuel-percent')).toHaveText('100%');
+  await expect(page.locator('#boost-status')).toHaveText('0 / 4');
+  await expect(page.locator('#rocket-status')).toHaveText('READY');
   await page.keyboard.down('KeyW');
   await expect.poll(async () => Number(await page.locator('#speed-value').textContent())).toBeGreaterThan(15);
+  await expect.poll(async () => Number((await page.locator('#fuel-percent').textContent()).replace('%', '')),
+    { timeout: 5_000 }).toBeLessThan(100);
   await page.screenshot({ path: `test-results/${test.info().project.name}-basic-motor-on.png` });
   await page.keyboard.up('KeyW');
 });
@@ -254,6 +260,22 @@ test('generates a seeded procedural track and exports JSON', async ({ page }) =>
   await page.locator('#menu-start').click();
   await page.waitForFunction(() => document.documentElement.dataset.ready === 'true', null, { timeout: 30_000 });
   await expect(page.locator('#track-name')).toHaveText('imported-g...');
+});
+
+test('generates the deterministic Pipe Dream large track', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => document.documentElement.dataset.menuReady === 'true', null, { timeout: 30_000 });
+  await page.locator('#track-select').selectOption('engine:pipe-dream');
+  await expect(page.locator('#procedural-controls')).toBeVisible();
+  await page.locator('#procedural-seed').fill('24681357');
+  await page.locator('#procedural-generate').click();
+  await expect(page.locator('[data-imported-track]').last()).toHaveText('PIPE-DREAM · 24681357');
+  await expect(page.locator('#track-import-status')).toHaveText('Pipe Dream · Seed 24681357 generated');
+  await expect(page.locator('#track-preview-name')).toHaveText('PIPE DREAM...');
+  await page.locator('#menu-start').click();
+  await page.waitForFunction(() => document.documentElement.dataset.ready === 'true', null, { timeout: 30_000 });
+  await expect(page.locator('#track-name')).toHaveText('imported-g...');
+  await expect(page.locator('#diagnostics')).toContainText('track actors');
 });
 
 test('keeps a 16:9 game stage and accepts held pointer controls', async ({ page }) => {

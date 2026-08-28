@@ -41,6 +41,7 @@
                     <option value="engine:small">Organic Small</option>
                     <option value="engine:medium">Organic Medium</option>
                     <option value="engine:large">Organic Large</option>
+                    <option value="engine:pipe-dream">Pipe Dream · Large</option>
                   </optgroup>
                   <optgroup id="imported-track-options" class="imported-track-options" label="LAST IMPORTED TRACKS" hidden></optgroup>
                 </select>
@@ -102,9 +103,23 @@
           </div>
         </header>
 
-        <div id="speed-hud" class="hud hidden" aria-label="Speed and fuel">
+        <div id="speed-hud" class="hud hidden" aria-label="Speed">
           <div class="speed-value"><strong id="speed-value">0</strong><span>km/h</span></div>
-          <div class="fuel"><span>FUEL</span><i><b id="fuel-value"></b></i></div>
+        </div>
+
+        <div id="resource-hud" class="hud hidden" aria-label="Vehicle resources">
+          <div class="hud-gauge fuel-gauge">
+            <div class="gauge-heading"><span>FUEL</span><output id="fuel-percent">100%</output></div>
+            <i class="gauge-track" role="meter" aria-label="Fuel remaining" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><b id="fuel-value"></b></i>
+          </div>
+          <div class="hud-gauge boost-gauge">
+            <div class="gauge-heading"><span>BOOST</span><output id="boost-status">0 / 4</output></div>
+            <i class="gauge-track" role="meter" aria-label="Boost charge" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><b id="boost-value"></b></i>
+          </div>
+          <div class="hud-gauge rocket-gauge">
+            <div class="gauge-heading"><span>ROCKET</span><output id="rocket-status">READY</output></div>
+            <i class="gauge-track" role="meter" aria-label="Rocket reload" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><b id="rocket-value"></b></i>
+          </div>
         </div>
 
         <div id="track-label" class="hud hidden">

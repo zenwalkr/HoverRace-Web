@@ -15,6 +15,7 @@ const WALL_STRETCH_HEIGHT = new Map([
   [52, 4], [53, 4], [54, 4], [55, 4], [56, 4], [57, 4],
   [72, 4], [73, 6],
 ]);
+const CAN_MESH_MIN_Z = -590;
 const CONTEXT_ATTRIBUTES = {
   alpha: false,
   antialias: true,
@@ -325,6 +326,9 @@ export class HoverRaceRenderer {
   }
 
   async buildActor(actor, index) {
+    // FuelSource is an invisible trigger in the original client; the fuel
+    // area texture marks the refill zone. Only class-152 power-ups render the
+    // rotating can pickup.
     const meshName = { powerup: 'can', mine: 'mine', bumperGate: 'inflating_column' }[actor.type];
     if (!meshName) return null;
     const meshData = await this.mesh(meshName);
@@ -332,7 +336,15 @@ export class HoverRaceRenderer {
       this.buildMeshFrame(frame, `actor-${index}-frame-${frameIndex}`)));
     const group = new THREE.Group();
     group.name = `actor-${actor.type}-${index}`;
-    group.position.copy(worldPoint(actor.position));
+    const position = [...actor.position];
+    const floor = this.track?.rooms?.[actor.classifiedRoom]?.floor;
+    if (meshName === 'can' && Number.isFinite(floor)) {
+      // Some original records store the can origin at the floor or slightly
+      // below it. Lift only buried cans so their actual mesh bottom clears the
+      // floor; elevated pickups retain their authored height.
+      position[2] = Math.max(position[2], floor - CAN_MESH_MIN_Z + 10);
+    }
+    group.position.copy(worldPoint(position));
     group.rotation.y = actor.orientation * Math.PI * 2 / 4096;
     for (const frame of frames) {
       frame.visible = false;
@@ -546,7 +558,7 @@ export class HoverRaceRenderer {
         visual.frames[frame].visible = true;
         visual.activeFrame = frame;
       }
-      if (visual.actor.type === 'powerup') {
+      if (visual.actor.type === 'powerup' || visual.actor.type === 'fuel') {
         visual.group.rotation.y = (visual.actor.orientation + frameTime) * Math.PI * 2 / 4096;
       }
     }

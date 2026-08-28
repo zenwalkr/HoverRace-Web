@@ -18,6 +18,7 @@ const MISSILE_RADIUS = 300;
 const MISSILE_LIFE = 7500;
 const MISSILE_STOP_TIME = 1200;
 const MISSILE_IGNITION = 175;
+const POWERUP_HALF_HEIGHT = 550;
 
 const STEADY_SPEED = [8.7, 11.5, 10.5, 8.7, 8.7, 8.7, 8.7, 8.1]
   .map((value) => value * 2222 / 1000);
@@ -141,6 +142,14 @@ function stateCrossesDown(previous, next, level) {
 
 function stateCrossesUp(previous, next, level) {
   return previous <= level && next >= level;
+}
+
+function pickupCollisionZ(track, actor) {
+  const floor = track.rooms?.[actor.classifiedRoom]?.floor;
+  if (!Number.isFinite(floor)) return actor.position[2];
+  if (actor.type === 'powerup') return Math.max(actor.position[2], floor + POWERUP_HALF_HEIGHT);
+  if (actor.type === 'fuel') return Math.max(actor.position[2], floor);
+  return actor.position[2];
 }
 
 export const CRAFT_MODEL_BY_ASSET = Object.freeze({
@@ -453,8 +462,11 @@ export class RaceSimulation {
 
   updateActorContacts(durationMs = TIME_SLICE_MS) {
     const state = this.state;
+    const currentRoom = this.track.rooms?.[state.room];
     for (const [index, actor] of (this.track.actors ?? []).entries()) {
-      if (actor.classifiedRoom !== state.room || state.actorVisible[index] === false) continue;
+      const actorRoomIsReachable = actor.classifiedRoom === state.room ||
+        currentRoom?.neighbors?.includes(actor.classifiedRoom);
+      if (!actorRoomIsReachable || state.actorVisible[index] === false) continue;
       const dx = state.position[0] - actor.position[0];
       const dy = state.position[1] - actor.position[1];
       let radius = CHECKPOINT_RADIUS;
@@ -465,8 +477,8 @@ export class RaceSimulation {
       else if (actor.type === 'speedDoubler') { radius = 20000; height = 2000; }
       else if (!actor.type?.startsWith('checkpoint') && actor.type !== 'finish') continue;
       if (dx * dx + dy * dy > (radius + CHARACTER_CONTACT_RADIUS) ** 2) continue;
-      const actorBottom = actor.type === 'powerup'
-        ? actor.position[2] - height / 2 : actor.position[2];
+      const actorZ = pickupCollisionZ(this.track, actor);
+      const actorBottom = actor.type === 'powerup' ? actorZ - height / 2 : actorZ;
       const actorTop = actorBottom + height;
       if (Math.max(state.position[2], actorBottom) >=
           Math.min(state.position[2] + CHARACTER_HEIGHT, actorTop)) continue;

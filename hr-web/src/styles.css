@@ -402,11 +402,71 @@ button {
 #speed-hud {
   position: absolute;
   z-index: 4;
-  right: 2.5%;
-  bottom: 4%;
+  top: 13%;
+  left: 3.2%;
+}
+
+#resource-hud {
+  position: absolute;
+  z-index: 4;
+  top: 11%;
+  right: 3.2%;
+  display: grid;
+  width: clamp(8.5rem, calc(16 * var(--reference-vw)), 12rem);
+  gap: clamp(0.35rem, calc(0.8 * var(--reference-vw)), 0.65rem);
+}
+
+.hud-gauge {
+  min-width: 0;
+}
+
+.gauge-heading {
   display: flex;
-  align-items: flex-end;
-  gap: clamp(0.5rem, calc(1.4 * var(--reference-vw)), 1.1rem);
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: #85ddeb;
+  font-size: clamp(0.45rem, calc(0.85 * var(--reference-vw)), 0.72rem);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.gauge-heading output {
+  color: #e8fcff;
+  font-size: 0.75em;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+.gauge-track {
+  display: block;
+  position: relative;
+  height: clamp(0.38rem, calc(0.7 * var(--reference-vw)), 0.58rem);
+  margin-top: 0.22rem;
+  overflow: hidden;
+  border: 1px solid rgba(104, 224, 243, 0.72);
+  background: repeating-linear-gradient(135deg, rgba(255, 104, 67, 0.28) 0 0.25rem, rgba(42, 15, 14, 0.72) 0.25rem 0.5rem);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.45), 0 0 0.65rem rgba(50, 196, 222, 0.14);
+}
+
+.gauge-track b {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, #1796b0, #d5fbff);
+  transition: width 120ms linear, background 120ms linear;
+}
+
+.fuel-gauge[data-low] .gauge-track b {
+  background: linear-gradient(90deg, #d33a2c, #ffb148);
+}
+
+.boost-gauge .gauge-track b {
+  background: linear-gradient(90deg, #ad5b1d, #ffe08c);
+}
+
+.rocket-gauge .gauge-track b {
+  background: linear-gradient(90deg, #6f42c2, #e1c5ff);
 }
 
 .speed-value {
@@ -423,31 +483,11 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
-.speed-value span, .fuel > span {
+.speed-value span {
   color: #85ddeb;
   font-size: clamp(0.45rem, calc(0.9 * var(--reference-vw)), 0.75rem);
   font-weight: 800;
   letter-spacing: 0.12em;
-}
-
-.fuel {
-  width: clamp(4.5rem, calc(10 * var(--reference-vw)), 8.5rem);
-}
-
-.fuel > * { display: block; }
-.fuel i {
-  height: clamp(0.32rem, calc(0.65 * var(--reference-vw)), 0.55rem);
-  margin-top: 0.25rem;
-  padding: 2px;
-  border: 1px solid rgba(104, 224, 243, 0.7);
-  background: rgba(0,0,0,0.55);
-}
-
-.fuel b {
-  display: block;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, #24bad5, #d5fbff);
 }
 
 #track-label {
@@ -1072,9 +1112,8 @@ body.paused::after {
 
 @media (pointer: coarse) {
   #speed-hud {
-    right: 50%;
-    bottom: 3%;
-    transform: translateX(50%);
+    top: 13%;
+    left: 3.2%;
   }
   #chat-panel { width: min(58%, 31rem); }
 }

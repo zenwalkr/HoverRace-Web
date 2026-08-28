@@ -279,6 +279,30 @@ test('applies native fuel-source and speed-doubler contact effects', () => {
   assert.ok(Math.abs(simulation.state.velocity[0] - 4 * PHYSICS_CONSTANTS.steadySpeed[0]) < 0.01);
 });
 
+test('keeps a buried power-up can above the floor for pickup', () => {
+  const track = testTrack();
+  track.actors = [{ type: 'powerup', classifiedRoom: 0, position: [0, 0, -900] }];
+  const simulation = new RaceSimulation(track, 0);
+  simulation.state.position = [0, 0, 0];
+  simulation.state.room = 0;
+  simulation.step(5, {});
+
+  assert.equal(simulation.state.actorVisible[0], false);
+  assert.equal(simulation.state.powerupCount, 1);
+});
+
+test('collects a power-up while crossing from a neighboring room portal', () => {
+  const track = steppedPortalTrack();
+  track.actors = [{ type: 'powerup', classifiedRoom: 1, position: [0, 0, 1550] }];
+  const simulation = new RaceSimulation(track, 0);
+  simulation.state.position = [-100, 0, 0];
+  simulation.state.room = 0;
+  simulation.updateActorContacts();
+
+  assert.equal(simulation.state.actorVisible[0], false);
+  assert.equal(simulation.state.powerupCount, 1);
+});
+
 test('collects original cans and mines with native inventory limits and effects', () => {
   const track = testTrack();
   track.actors = [

@@ -19,7 +19,7 @@ const loading = $('#loading');
 const loadingDetail = $('#loading-detail');
 const loadingProgress = $('#loading-progress');
 const diagnostics = $('#diagnostics');
-const uiElements = ['#race-hud', '#speed-hud', '#track-label', '#radar', '#race-countdown', '#touch-controls', '#camera-button', '#chat-button', '#pause-button'];
+const uiElements = ['#race-hud', '#speed-hud', '#resource-hud', '#track-label', '#radar', '#race-countdown', '#touch-controls', '#camera-button', '#chat-button', '#pause-button'];
 
 // The reference screenshots were captured from an iPhone landscape viewport
 // whose visible 16:9 game stage is 693.333 CSS pixels wide by 390 CSS pixels
@@ -945,7 +945,26 @@ async function boot() {
       audio.update(state, input.state);
       network.update(state);
       $('#speed-value').textContent = Math.round(Math.abs(state.speed) * 3.6);
-      $('#fuel-value').style.width = `${Math.round(state.fuel * 100)}%`;
+      const fuelPercent = Math.round(Math.max(0, Math.min(1, state.fuel)) * 100);
+      const fuelValue = $('#fuel-value');
+      fuelValue.style.width = `${fuelPercent}%`;
+      fuelValue.parentElement.setAttribute('aria-valuenow', String(fuelPercent));
+      fuelValue.parentElement.parentElement.toggleAttribute('data-low', fuelPercent < 20);
+      $('#fuel-percent').textContent = `${fuelPercent}%`;
+      const boostPercent = state.powerup > 0
+        ? Math.round(Math.max(0, Math.min(1, state.powerup / 5000)) * 100)
+        : Math.round(Math.max(0, Math.min(1, state.powerupCount / 4)) * 100);
+      const boostValue = $('#boost-value');
+      boostValue.style.width = `${boostPercent}%`;
+      boostValue.parentElement.setAttribute('aria-valuenow', String(boostPercent));
+      $('#boost-status').textContent = state.powerup > 0
+        ? `${(state.powerup / 1000).toFixed(1)}s`
+        : `${state.powerupCount} / 4`;
+      const rocketPercent = Math.round(Math.max(0, Math.min(1, 1 - simulation.missileCooldown / 10000)) * 100);
+      const rocketValue = $('#rocket-value');
+      rocketValue.style.width = `${rocketPercent}%`;
+      rocketValue.parentElement.setAttribute('aria-valuenow', String(rocketPercent));
+      $('#rocket-status').textContent = rocketPercent >= 100 ? 'READY' : `${rocketPercent}%`;
       $('#time-value').textContent = formatTime(state.raceTime);
       $('#lap-value').textContent = `${state.lap} / 3`;
       const countdown = $('#race-countdown');
