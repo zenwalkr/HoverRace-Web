@@ -62,7 +62,7 @@ try {
   assert.equal(rooms.response.status, 200);
   const directory = JSON.parse(rooms.payload);
   assert.equal(directory.games[0].id, createdPayload.game.id);
-  assert.equal(directory.users.some((user) => user.id === 'production-player-0001'), false);
+  assert.equal(directory.users.some((user) => user.id === 'production-player-0001'), true);
 
   const page = await fetch(`${origin}/`);
   assert.equal(page.status, 200);

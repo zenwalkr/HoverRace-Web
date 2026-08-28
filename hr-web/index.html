@@ -14,9 +14,15 @@
       <section id="stage" aria-label="Game viewport">
         <canvas id="game-canvas"></canvas>
 
+        <div id="stage-ui" aria-label="Game interface">
+
         <section id="main-menu" class="hidden" aria-label="Main menu">
           <div class="menu-brand">
             <h1>HOVERRACE</h1>
+            <div class="menu-track-preview" aria-label="Track preview">
+              <div class="menu-track-preview-heading"><span>TRACK PREVIEW</span><small id="track-preview-name">CLASSICH</small></div>
+              <canvas id="track-preview" width="480" height="480" aria-label="Top-down track preview"></canvas>
+            </div>
             <p>HTML5 · WEBGL DIRECT PORT</p>
           </div>
           <div class="menu-card">
@@ -41,7 +47,10 @@
                 <button id="track-import" class="import-track-button" type="button">IMPORT</button>
               </div>
               <input id="track-file" class="visually-hidden-file" type="file" accept=".json,.trk,application/json,application/octet-stream" multiple />
-              <small id="track-import-status" class="track-import-status" role="status"></small>
+              <div class="track-picker-meta">
+                <small id="track-import-status" class="track-import-status" role="status"></small>
+                <button id="track-remove" class="track-remove-button hidden" type="button">REMOVE</button>
+              </div>
             </div>
             <div id="procedural-controls" class="menu-group procedural-group hidden">
               <strong>PROCEDURAL ENGINE</strong>
@@ -178,11 +187,12 @@
             <button id="race-menu" type="button">MAIN MENU</button>
           </div>
         </section>
-        <div id="orientation-warning">Rotate your phone to landscape</div>
         <output id="performance-panel" class="hidden" aria-live="polite"></output>
         <output id="diagnostics" aria-live="polite"></output>
         <output id="network-status" class="hidden" aria-live="polite">OFFLINE</output>
+        </div>
       </section>
+      <div id="orientation-warning"><span>Rotate your phone to landscape</span></div>
     </main>
     <script type="module" src="/src/main.js"></script>
   </body>

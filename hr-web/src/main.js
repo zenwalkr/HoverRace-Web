@@ -13,11 +13,34 @@ import { downloadTrack } from './track-export.js';
 
 const $ = (selector) => document.querySelector(selector);
 const canvas = $('#game-canvas');
+const stage = $('#stage');
+const stageUi = $('#stage-ui');
 const loading = $('#loading');
 const loadingDetail = $('#loading-detail');
 const loadingProgress = $('#loading-progress');
 const diagnostics = $('#diagnostics');
 const uiElements = ['#race-hud', '#speed-hud', '#track-label', '#radar', '#race-countdown', '#touch-controls', '#camera-button', '#chat-button', '#pause-button'];
+
+// The reference screenshots were captured from an iPhone landscape viewport
+// whose visible 16:9 game stage is 693.333 CSS pixels wide by 390 CSS pixels
+// high. Keep the interface in that logical coordinate space and scale the
+// complete layer as one unit so viewport size, browser chrome, and device
+// pixel ratio cannot change the relative layout.
+const REFERENCE_STAGE_WIDTH = 390 * 16 / 9;
+
+function updateStageUiScale() {
+  if (!stage || !stageUi) return;
+  const width = stage.clientWidth;
+  if (!width) return;
+  stageUi.style.setProperty('--stage-scale', String(width / REFERENCE_STAGE_WIDTH));
+}
+
+if (stage && stageUi) {
+  const stageResizeObserver = new ResizeObserver(updateStageUiScale);
+  stageResizeObserver.observe(stage);
+  window.addEventListener('resize', updateStageUiScale, { passive: true });
+  updateStageUiScale();
+}
 
 function setProgress(value, detail) {
   loadingProgress.style.width = `${Math.round(value * 100)}%`;
@@ -117,7 +140,9 @@ function setupChat(identity, requestNickname) {
   let trackProvider = () => 'ClassicH';
   let createGameHandler = null;
   let joinGameHandler = null;
+  let leaveGameHandler = null;
   let startGameHandler = null;
+  let joiningGame = false;
   let lastUsers = [];
   let lastGames = [];
 
@@ -187,8 +212,8 @@ function setupChat(identity, requestNickname) {
       const button = document.createElement('button');
       button.type = 'button';
       button.dataset.gameId = game.id;
-      button.textContent = game.id === selectedGame?.id ? 'SELECTED' : 'JOIN';
-      button.disabled = joinedGame != null;
+      button.textContent = game.id === joinedGame?.room ? 'JOINED' :
+        (joiningGame && game.id === selectedGame?.id ? 'JOINING…' : 'JOIN');
       item.append(detail, button);
       games.append(item);
     }
@@ -204,9 +229,9 @@ function setupChat(identity, requestNickname) {
   const updateGameControls = () => {
     const joinButton = $('#chat-race');
     const startButton = $('#chat-start');
-    const canJoin = selectedGame != null && joinedGame == null;
     const canStart = joinedGame != null && joinedGame.isHost && joinedGame.status === 'waiting';
-    joinButton.classList.toggle('hidden', !canJoin);
+    // Game rows join directly; keep the legacy secondary control hidden.
+    joinButton.classList.add('hidden');
     startButton.classList.toggle('hidden', !canStart);
     if (joinedGame) {
       joinButton.classList.add('hidden');
@@ -321,24 +346,45 @@ function setupChat(identity, requestNickname) {
   });
   games.addEventListener('click', (event) => {
     const button = event.target.closest('button[data-game-id]');
-    if (!button || button.disabled) return;
-    selectedGame = (lastGames ?? []).find((game) => game.id === button.dataset.gameId) ?? null;
+    if (!button || joiningGame) return;
+    const nextGame = (lastGames ?? []).find((game) => game.id === button.dataset.gameId);
+    if (!nextGame) return;
+    selectedGame = nextGame;
+    joiningGame = true;
     renderDirectory({ users: lastUsers ?? [], games: lastGames ?? [] });
+    void (async () => {
+      try {
+        if (joinedGame?.room === nextGame.id) {
+          await leaveGameHandler?.();
+        } else {
+          if (joinedGame) await leaveGameHandler?.();
+          await joinGameHandler?.(nextGame.id);
+        }
+      } catch {
+        status.textContent = 'JOIN FAILED';
+        status.classList.remove('online');
+      } finally {
+        joiningGame = false;
+        if (open) await refreshDirectory();
+        updateGameControls();
+      }
+    })();
   });
   window.setInterval(() => { if (open) void refreshDirectory(); }, 2000);
   window.setInterval(() => { if (open) void poll(); }, 1800);
   return {
     open: () => setOpen(true),
     close: () => setOpen(false),
-    setGameHandlers: ({ create, join, start }) => {
+    setGameHandlers: ({ create, join, leave, start }) => {
       createGameHandler = create;
       joinGameHandler = join;
+      leaveGameHandler = leave;
       startGameHandler = start;
     },
     setTrackProvider: (provider) => { trackProvider = provider; },
     setGameState: (state) => {
       joinedGame = state;
-      selectedGame = state ? { id: state.room, name: state.name ?? 'Selected game' } : selectedGame;
+      selectedGame = state ? { id: state.room, name: state.name ?? 'Joined game' } : null;
       if (open) syncRoomView();
       updateGameControls();
     },
@@ -402,19 +448,121 @@ async function boot() {
   const trackFile = $('#track-file');
   const importedTrackOptions = $('#imported-track-options');
   const trackImportStatus = $('#track-import-status');
+  const trackRemove = $('#track-remove');
+  const trackPreview = $('#track-preview');
+  const trackPreviewName = $('#track-preview-name');
   const proceduralControls = $('#procedural-controls');
   const proceduralSeed = $('#procedural-seed');
   const proceduralGenerate = $('#procedural-generate');
   const generatedTrackTools = $('#generated-track-tools');
   let importedTrackNumber = 0;
   let selectedEngine = null;
+  let trackStatusKind = '';
+  let previewRequest = 0;
+
+  const randomProceduralSeed = () => {
+    const values = new Uint32Array(1);
+    if (globalThis.crypto?.getRandomValues) globalThis.crypto.getRandomValues(values);
+    else values[0] = Math.floor(Math.random() * 4_294_967_295) + 1;
+    return Math.max(1, values[0] >>> 0);
+  };
+
+  const displayTrackName = (name) => {
+    const text = String(name ?? '');
+    return text.length > 10 ? `${text.slice(0, 10)}...` : text;
+  };
 
   const updateGeneratedTools = () => {
     generatedTrackTools.classList.toggle('hidden', !generatedTracks.has(selectedTrack));
   };
 
+  const updateTrackRemoval = () => {
+    const removable = importedTracks.has(selectedTrack) && !allowedTracks.includes(selectedTrack);
+    trackRemove.classList.toggle('hidden', !removable);
+  };
+
+  const drawTrackPreview = (track) => {
+    const context = trackPreview?.getContext('2d');
+    if (!context) return;
+    const width = trackPreview.width;
+    const height = trackPreview.height;
+    const rooms = (track?.rooms ?? []).filter((room) => Array.isArray(room?.vertices));
+    const points = rooms.flatMap((room) => room.vertices
+      .map((vertex) => vertex.point)
+      .filter((point) => Array.isArray(point) && Number.isFinite(point[0]) && Number.isFinite(point[1])));
+    context.clearRect(0, 0, width, height);
+    context.fillStyle = '#020b0e';
+    context.fillRect(0, 0, width, height);
+    if (!points.length) return;
+    const xs = points.map(([x]) => x);
+    const ys = points.map(([, y]) => y);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    const span = Math.max(maxX - minX, maxY - minY, 1);
+    const squareMinX = (minX + maxX - span) / 2;
+    const squareMinY = (minY + maxY - span) / 2;
+    const padding = 24;
+    const project = ([x, y]) => [
+      padding + (x - squareMinX) * (width - padding * 2) / span,
+      height - padding - (y - squareMinY) * (height - padding * 2) / span,
+    ];
+    const finishRooms = new Set((track.actors ?? [])
+      .filter((actor) => actor?.type === 'finish')
+      .map((actor) => actor.classifiedRoom));
+    context.lineJoin = 'round';
+    context.lineWidth = 2;
+    for (const [index, room] of rooms.entries()) {
+      const roomPoints = room.vertices.map((vertex) => project(vertex.point));
+      if (roomPoints.length < 3) continue;
+      context.beginPath();
+      context.moveTo(...roomPoints[0]);
+      for (const point of roomPoints.slice(1)) context.lineTo(...point);
+      context.closePath();
+      context.fillStyle = finishRooms.has(index) ? 'rgba(228, 119, 49, 0.72)' : 'rgba(89, 171, 184, 0.3)';
+      context.fill();
+      context.strokeStyle = finishRooms.has(index) ? '#ffad62' : '#4fe0ef';
+      context.stroke();
+    }
+    context.fillStyle = '#ff9b31';
+    context.strokeStyle = '#32170b';
+    context.lineWidth = 1.5;
+    for (const start of (track.starts ?? [])) {
+      const point = project(start.position);
+      context.beginPath();
+      context.arc(point[0], point[1], 5, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+    }
+    context.strokeStyle = '#67e8fa';
+    context.lineWidth = 2;
+    context.strokeRect(1, 1, width - 2, height - 2);
+  };
+
+  const updateTrackPreview = async (trackId = selectedTrack, knownTrack = null) => {
+    const request = ++previewRequest;
+    let track = knownTrack ?? trackCache.get(trackId) ?? importedTracks.get(trackId) ?? null;
+    trackPreviewName.textContent = displayTrackName(track?.title ?? trackId).toUpperCase();
+    trackPreview.dataset.track = trackId;
+    if (!track && allowedTracks.includes(trackId)) {
+      try {
+        track = await fetchJson(assetUrl('tracks', `${trackId}.json`));
+        trackCache.set(trackId, track);
+      } catch {
+        track = null;
+      }
+    }
+    if (request !== previewRequest || trackId !== selectedTrack) return;
+    drawTrackPreview(track);
+  };
+
   const selectTrack = (trackId) => {
     selectedTrack = trackId;
+    if (trackStatusKind === 'generated' && !generatedTracks.has(trackId)) {
+      trackImportStatus.textContent = '';
+      trackStatusKind = '';
+    }
     const generated = generatedTracks.get(trackId);
     selectedEngine = generated?.size ?? null;
     if (generated) {
@@ -425,6 +573,8 @@ async function boot() {
     }
     trackSelect.value = selectedTrack;
     updateGeneratedTools();
+    updateTrackRemoval();
+    void updateTrackPreview(selectedTrack);
   };
 
   const addTrackOption = (trackId, label, track, title = label, select = true) => {
@@ -477,17 +627,34 @@ async function boot() {
     trackSelect.value = `engine:${selectedEngine}`;
     proceduralControls.classList.remove('hidden');
     updateGeneratedTools();
+    updateTrackRemoval();
+    trackStatusKind = 'generated';
     trackImportStatus.textContent = `${track.title} generated`;
+    void updateTrackPreview(trackId, track);
   };
   trackSelect.addEventListener('change', () => {
     const value = trackSelect.value;
     if (value.startsWith('engine:')) {
       selectedEngine = value.slice('engine:'.length);
+      proceduralSeed.value = String(randomProceduralSeed());
       proceduralControls.classList.remove('hidden');
       generateSelectedProcedural();
       return;
     }
     selectTrack(value);
+  });
+  trackRemove.addEventListener('click', (event) => {
+    event.preventDefault();
+    const trackId = selectedTrack;
+    if (!importedTracks.has(trackId) || allowedTracks.includes(trackId)) return;
+    importedTracks.delete(trackId);
+    generatedTracks.delete(trackId);
+    trackCache.delete(trackId);
+    [...importedTrackOptions.querySelectorAll('option')]
+      .find((option) => option.value === trackId)?.remove();
+    selectTrack('ClassicH');
+    trackStatusKind = 'removed';
+    trackImportStatus.textContent = 'Track removed';
   });
   proceduralGenerate.addEventListener('click', (event) => {
     event.preventDefault();
@@ -527,6 +694,7 @@ async function boot() {
     trackImportStatus.textContent = errors.length
       ? `${imported} imported · ${errors.join(' · ')}`
       : `${imported} track${imported === 1 ? '' : 's'} imported`;
+    trackStatusKind = 'imported';
     trackFile.value = '';
   });
 
@@ -537,7 +705,8 @@ async function boot() {
   const track = await fetchJson(assetUrl('tracks', 'ClassicH.json'));
   trackCache.set('ClassicH', track);
   radar.setTrack(track);
-  $('#track-name').textContent = 'ClassicH';
+  $('#track-name').textContent = displayTrackName('ClassicH');
+  void updateTrackPreview('ClassicH', track);
 
   setProgress(0.42, `Building ${track.rooms.length} rooms and ${track.features.length} features…`);
   await renderer.buildTrack(track);
@@ -667,7 +836,7 @@ async function boot() {
       console.warn('Track shader warm-up failed; shaders will compile on demand.', error);
     });
 
-    $('#track-name').textContent = selectedTrack;
+    $('#track-name').textContent = displayTrackName(selectedTrack);
     const inspectActor = urlParams.get('inspectActor');
     if (inspectActor) {
       const currentTrack = trackCache.get(activeTrack);
@@ -733,6 +902,12 @@ async function boot() {
       onlineRoom = room;
       const session = await network.join({ room, playerId: identity.id, player: identity.name, craft: selectedCraft });
       await startRace({ session, requireOnline: true });
+    },
+    leave: async () => {
+      await network.leave();
+      onlineEnabled = false;
+      onlineRoom = 'lobby';
+      chat.setGameState(null);
     },
     start: async () => { await network.start(); },
   });

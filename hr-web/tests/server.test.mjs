@@ -79,7 +79,7 @@ try {
   assert.equal(host.isHost, true);
 
   const directory = await json('/api/rooms');
-  assert.equal(directory.payload.users.some((user) => user.id === one.playerId), false);
+  assert.equal(directory.payload.users.some((user) => user.id === one.playerId), true);
   assert.equal(directory.payload.games.some((game) => game.id === room), true);
 
   const chatResult = await post('/api/chat', { ...one, message: '<b>Hello</b>' });
@@ -93,6 +93,9 @@ try {
   })).payload.session;
   assert.notEqual(host.startSlot, second.startSlot);
   assert.equal(second.isHost, false);
+  const waitingDirectory = await json('/api/rooms');
+  assert.equal(waitingDirectory.payload.users.some((user) => user.id === one.playerId), true);
+  assert.equal(waitingDirectory.payload.users.some((user) => user.id === two.playerId), true);
 
   const nonHostStart = await post('/api/race/start', { room, token: second.token });
   assert.equal(nonHostStart.response.status, 403);
@@ -103,6 +106,7 @@ try {
   assert.ok(started.payload.startAt > started.payload.serverTime);
   const startedDirectory = await json('/api/rooms');
   assert.equal(startedDirectory.payload.games.some((game) => game.id === room), false);
+  assert.equal(startedDirectory.payload.users.some((user) => user.id === one.playerId), false);
   assert.equal(startedDirectory.payload.users.some((user) => user.id === two.playerId), false);
 
   const late = await post('/api/race/join', {

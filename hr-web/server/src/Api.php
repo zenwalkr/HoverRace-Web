@@ -93,13 +93,8 @@ final class Api
         if ($this->isInActiveGame($id, $now)) {
             $this->removeLobbyPlayer($id);
         } else {
-            $this->store->mutate('lobby', function (array $users) use ($id, $name, $now): array {
-                $users = array_values(array_filter($users, static fn (mixed $user): bool =>
-                    is_array($user) && (int) ($user['updatedAt'] ?? 0) >= $now - self::PRESENCE_TTL_MS &&
-                    ($user['id'] ?? '') !== $id));
-                $users[] = ['id' => $id, 'name' => $name, 'updatedAt' => $now];
-                return [$users, null];
-            });
+            $this->touchWaitingGamePlayer($id, $name, $now);
+            $this->addLobbyPlayer($id, $name, $now);
         }
         return ['users' => $this->activeLobbyUsers($now), 'serverTime' => $now];
     }
@@ -187,7 +182,7 @@ final class Api
         $this->store->mutate('game_' . $roomId, static function (array $unused) use ($game): array {
             return [$game, null];
         });
-        $this->removeLobbyPlayer($playerId);
+        $this->addLobbyPlayer($playerId, $playerName, $now);
         return ['game' => $this->publicGame($game), 'session' => $this->session($game, $player)];
     }
 
@@ -223,7 +218,7 @@ final class Api
             if (($game['hostId'] ?? null) === null) $game['hostId'] = $playerId;
             return [$game, $this->session($game, $player)];
         });
-        $this->removeLobbyPlayer($playerId);
+        $this->addLobbyPlayer($playerId, $playerName, $now);
         return ['session' => $result, 'game' => $this->publicGame($this->game($roomId))];
     }
 
@@ -245,6 +240,9 @@ final class Api
             $game['startAt'] = $now + self::START_DELAY_MS;
             return [$game, $game];
         });
+        foreach ($game['players'] as $player) {
+            if (is_string($player['id'] ?? null)) $this->removeLobbyPlayer($player['id']);
+        }
         return ['room' => $roomId, 'status' => $game['status'], 'startAt' => $game['startAt'], 'serverTime' => $now];
     }
 
@@ -489,11 +487,46 @@ final class Api
             $roomId = (string) ($room['id'] ?? '');
             if ($roomId === '' || !is_file($this->storePath('game_' . $roomId))) continue;
             $game = $this->game($roomId);
+            if (!in_array($game['status'], ['starting', 'racing'], true)) continue;
             foreach ($game['players'] as $player) {
                 if (($player['id'] ?? '') === $playerId && (int) ($player['updatedAt'] ?? 0) >= $now - self::RACE_PLAYER_TTL_MS) return true;
             }
         }
         return false;
+    }
+
+    private function touchWaitingGamePlayer(string $playerId, string $name, int $now): void
+    {
+        foreach ($this->store->read('rooms') as $room) {
+            if (!is_array($room) || ($room['status'] ?? 'waiting') !== 'waiting') continue;
+            $roomId = (string) ($room['id'] ?? '');
+            if ($roomId === '' || !is_file($this->storePath('game_' . $roomId))) continue;
+            $this->mutateGame($roomId, function (array $game) use ($playerId, $name, $now): array {
+                $game = $this->normaliseGame($game);
+                if ($game['status'] !== 'waiting') return [$game, null];
+                foreach ($game['players'] as &$player) {
+                    if (($player['id'] ?? '') === $playerId) {
+                        $player['name'] = $name;
+                        $player['updatedAt'] = $now;
+                        unset($player);
+                        return [$game, true];
+                    }
+                }
+                unset($player);
+                return [$game, null];
+            }, false);
+        }
+    }
+
+    private function addLobbyPlayer(string $playerId, string $name, int $now): void
+    {
+        $this->store->mutate('lobby', function (array $users) use ($playerId, $name, $now): array {
+            $users = array_values(array_filter($users, static fn (mixed $user): bool =>
+                is_array($user) && (int) ($user['updatedAt'] ?? 0) >= $now - self::PRESENCE_TTL_MS &&
+                ($user['id'] ?? '') !== $playerId));
+            $users[] = ['id' => $playerId, 'name' => $name, 'updatedAt' => $now];
+            return [$users, null];
+        });
     }
 
     /** @return list<array<string, mixed>> */

@@ -4,6 +4,9 @@ export class InputController {
   constructor(root = document) {
     this.state = Object.fromEntries(ACTIONS.map((action) => [action, false]));
     this.pointerActions = new Map();
+    this.lastThrottleTapAt = 0;
+    this.jumpPulseTimer = null;
+    this.jumpPulseActive = false;
     this.bindKeyboard();
     this.bindTouch(root);
     this.disableBrowserGestures(root);
@@ -43,6 +46,24 @@ export class InputController {
         button.setPointerCapture?.(event.pointerId);
         this.pointerActions.set(event.pointerId, actions);
         for (const pressedAction of actions) this.state[pressedAction] = true;
+        // A quick second tap on the gas button requests one jump while the
+        // normal throttle action remains held for this pointer.
+        if (action === 'throttle') {
+          const now = performance.now();
+          if (now - this.lastThrottleTapAt <= 320) {
+            this.jumpPulseActive = true;
+            this.state.jump = true;
+            clearTimeout(this.jumpPulseTimer);
+            this.jumpPulseTimer = setTimeout(() => {
+              this.jumpPulseActive = false;
+              this.state.jump = [...this.pointerActions.values()]
+                .some((activeActions) => activeActions.includes('jump'));
+            }, 90);
+            this.lastThrottleTapAt = 0;
+          } else {
+            this.lastThrottleTapAt = now;
+          }
+        }
         button.classList.add('pressed');
       };
       const release = (event) => {
@@ -76,6 +97,9 @@ export class InputController {
   releaseAll() {
     for (const action of ACTIONS) this.state[action] = false;
     this.pointerActions.clear();
+    clearTimeout(this.jumpPulseTimer);
+    this.jumpPulseActive = false;
+    this.lastThrottleTapAt = 0;
     for (const button of document.querySelectorAll('[data-action].pressed')) button.classList.remove('pressed');
   }
 }

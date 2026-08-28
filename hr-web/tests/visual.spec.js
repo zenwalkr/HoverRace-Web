@@ -81,7 +81,7 @@ test('resets the practice countdown after leaving and starting another race', as
   await expect(page.locator('#main-menu')).toBeVisible();
   await page.locator('#track-select').selectOption('Steeplechase');
   await page.locator('#menu-start').click();
-  await expect(page.locator('#track-name')).toHaveText('Steeplechase', { timeout: 30_000 });
+  await expect(page.locator('#track-name')).toHaveText('Steeplecha...', { timeout: 30_000 });
   await expect(page.locator('#race-countdown')).toBeVisible();
   await page.locator('#race-countdown').waitFor({ state: 'hidden', timeout: 30_000 });
   await page.keyboard.down('KeyW');
@@ -115,6 +115,38 @@ test('opens the PHP-backed Internet Meeting Room directory', async ({ page }) =>
   await expect(page.locator('#chat-status')).toHaveText('ONLINE');
   await expect(page.locator('#chat-users')).toBeVisible();
   await expect(page.locator('#chat-games')).toBeVisible();
+  const lobbyLayout = await page.evaluate(() => {
+    const stage = document.querySelector('#stage').getBoundingClientRect();
+    const panel = document.querySelector('#chat-panel').getBoundingClientRect();
+    const directory = document.querySelector('#chat-directory');
+    const sections = [...directory.querySelectorAll('.directory-section')];
+    for (const list of [document.querySelector('#chat-users'), document.querySelector('#chat-games')]) {
+      for (let index = 0; index < 30; index += 1) {
+        const item = document.createElement('li');
+        item.textContent = `Test player ${index}`;
+        list.append(item);
+      }
+    }
+    return {
+      fullStage: [panel.left - stage.left, panel.top - stage.top, panel.width, panel.height],
+      stage: [stage.width, stage.height],
+      background: getComputedStyle(document.querySelector('#chat-panel')).backgroundColor,
+      divider: [getComputedStyle(sections[1]).borderLeftStyle, getComputedStyle(sections[1]).borderLeftWidth],
+      listOverflow: [getComputedStyle(document.querySelector('#chat-users')).overflowY, getComputedStyle(document.querySelector('#chat-games')).overflowY],
+      listScrolls: [
+        document.querySelector('#chat-users').scrollHeight > document.querySelector('#chat-users').clientHeight,
+        document.querySelector('#chat-games').scrollHeight > document.querySelector('#chat-games').clientHeight,
+      ],
+    };
+  });
+  expect(lobbyLayout.fullStage[0]).toBeCloseTo(0, 0);
+  expect(lobbyLayout.fullStage[1]).toBeCloseTo(0, 0);
+  expect(lobbyLayout.fullStage[2]).toBeCloseTo(lobbyLayout.stage[0], 0);
+  expect(lobbyLayout.fullStage[3]).toBeCloseTo(lobbyLayout.stage[1], 0);
+  expect(lobbyLayout.background).toBe('rgb(2, 7, 10)');
+  expect(lobbyLayout.divider).toEqual(['solid', expect.any(String)]);
+  expect(lobbyLayout.listOverflow).toEqual(['auto', 'auto']);
+  expect(lobbyLayout.listScrolls).toEqual([true, true]);
   const chatInput = page.locator('#chat-input');
   await chatInput.pressSequentially('asdwe normal letters space bar');
   await expect(chatInput).toHaveValue('asdwe normal letters space bar');
@@ -128,6 +160,13 @@ test('returns keyboard driving after closing in-race chat', async ({ page }) => 
   await expect(page.locator('#nickname-dialog')).toBeVisible();
   await page.locator('#nickname-input').press('Enter');
   await expect(page.locator('#chat-panel')).toBeVisible();
+  const inRaceChat = await page.locator('#chat-panel').evaluate((panel) => {
+    const stage = document.querySelector('#stage').getBoundingClientRect();
+    const rect = panel.getBoundingClientRect();
+    return { width: rect.width, stageWidth: stage.width, background: getComputedStyle(panel).backgroundColor };
+  });
+  expect(inRaceChat.width).toBeLessThan(inRaceChat.stageWidth);
+  expect(inRaceChat.background).toBe('rgba(2, 7, 10, 0.94)');
   await page.locator('#chat-input').pressSequentially('asdwe');
   await page.locator('#chat-close').click();
   await expect(page.locator('#chat-panel')).toBeHidden();
@@ -139,7 +178,7 @@ test('returns keyboard driving after closing in-race chat', async ({ page }) => 
 test('renders decoded permanent bumper-gate actor meshes', async ({ page }) => {
   await page.goto('/?autostart=1&skipCountdown=1&track=Steeplechase&inspectActor=bumperGate');
   await page.waitForFunction(() => document.documentElement.dataset.ready === 'true', null, { timeout: 30_000 });
-  await expect(page.locator('#track-name')).toHaveText('Steeplechase');
+  await expect(page.locator('#track-name')).toHaveText('Steeplecha...');
   await expect(page.locator('#diagnostics')).toContainText('6 track actors');
   await page.screenshot({ path: `test-results/${test.info().project.name}-bumper-gates.png` });
 });
@@ -154,7 +193,7 @@ test('shows the 16:9 touch menu and switches original source assets', async ({ p
   await page.screenshot({ path: `test-results/${test.info().project.name}-main-menu.png` });
   await page.locator('#menu-start').click();
   await page.waitForFunction(() => document.documentElement.dataset.ready === 'true', null, { timeout: 30_000 });
-  await expect(page.locator('#track-name')).toHaveText('Steeplechase');
+  await expect(page.locator('#track-name')).toHaveText('Steeplecha...');
   await expect(page.locator('#diagnostics')).toContainText('craft patches');
   if (test.info().project.name === 'touch-landscape') {
     await expect(page.locator('.radial-controls')).toBeVisible();
@@ -182,6 +221,13 @@ test('imports a track JSON and exposes it beside the built-in tracks', async ({ 
   await page.locator('#track-select').selectOption({ label: 'Imported Practice' });
   await expect(page.locator('#track-select')).toHaveValue(/imported-/);
   await expect(page.locator('#track-import-status')).toHaveText('1 track imported');
+  await expect(page.locator('#track-preview')).toBeVisible();
+  await expect(page.locator('#track-remove')).toBeVisible();
+  await expect(page.locator('#track-preview')).toHaveAttribute('data-track', /imported-/);
+  await page.locator('#track-remove').click();
+  await expect(page.locator('#track-select')).toHaveValue('ClassicH');
+  await expect(page.locator('#track-remove')).toBeHidden();
+  await expect(page.locator('[data-imported-track]')).toHaveCount(0);
 });
 
 test('generates a seeded procedural track and exports JSON', async ({ page }) => {
@@ -195,12 +241,19 @@ test('generates a seeded procedural track and exports JSON', async ({ page }) =>
   await expect(generated).toHaveText('SMALL · 2468');
   await expect(page.locator('#generated-track-tools')).toBeVisible();
   await expect(page.locator('#track-import-status')).toHaveText('Procedural small circuit · Seed 2468 generated');
+  await expect(page.locator('#track-preview')).toHaveAttribute('data-track', /imported-generated-small-2468/);
+  await expect(page.locator('#track-preview-name')).toHaveText('PROCEDURAL...');
   const download = page.waitForEvent('download');
   await page.locator('#export-track-json').click();
   expect((await download).suggestedFilename()).toMatch(/procedural-small-circuit-seed-2468\.json/);
+  await page.locator('#track-select').selectOption('ClassicH');
+  await expect(page.locator('#procedural-controls')).toBeHidden();
+  await expect(page.locator('#track-import-status')).toHaveText('');
+  await expect(page.locator('#track-remove')).toBeHidden();
+  await page.locator('#track-select').selectOption({ label: 'SMALL · 2468' });
   await page.locator('#menu-start').click();
   await page.waitForFunction(() => document.documentElement.dataset.ready === 'true', null, { timeout: 30_000 });
-  await expect(page.locator('#track-name')).toHaveText('imported-generated-small-2468');
+  await expect(page.locator('#track-name')).toHaveText('imported-g...');
 });
 
 test('keeps a 16:9 game stage and accepts held pointer controls', async ({ page }) => {
@@ -241,6 +294,126 @@ test('keeps a 16:9 game stage and accepts held pointer controls', async ({ page 
   await expect.poll(async () => Number(await page.locator('#speed-value').textContent())).toBeGreaterThan(10);
   await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await expect(throttle).not.toHaveClass(/pressed/);
+});
+
+test('keeps the authored interface geometry at every 16:9 viewport size', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => document.documentElement.dataset.menuReady === 'true', null, { timeout: 30_000 });
+  const selectors = ['#main-menu', '.menu-brand', '.menu-track-preview', '.menu-card', '#track-select', '.craft-options', '.menu-actions'];
+  const measure = (selectors) => {
+    const stage = document.querySelector('#stage').getBoundingClientRect();
+    return Object.fromEntries(selectors.map((selector) => {
+      const rect = document.querySelector(selector).getBoundingClientRect();
+      return [selector, [
+        (rect.left - stage.left) / stage.width,
+        (rect.top - stage.top) / stage.height,
+        rect.width / stage.width,
+        rect.height / stage.height,
+      ]];
+    }));
+  };
+  const baseline = await page.evaluate(measure, selectors);
+  const previewShape = await page.locator('.menu-track-preview').evaluate((preview) => {
+    const rect = preview.getBoundingClientRect();
+    const title = preview.previousElementSibling.getBoundingClientRect();
+    const brand = preview.closest('.menu-brand').getBoundingClientRect();
+    return {
+      square: rect.width / rect.height,
+      belowTitle: rect.top >= title.bottom - 1,
+      insideBrand: rect.left >= brand.left - 1 && rect.right <= brand.right + 1,
+    };
+  });
+  expect(previewShape.square).toBeCloseTo(1, 2);
+  expect(previewShape.belowTitle).toBe(true);
+  expect(previewShape.insideBrand).toBe(true);
+  for (const viewport of [{ width: 640, height: 360 }, { width: 844, height: 390 }, { width: 1280, height: 720 }, { width: 1600, height: 900 }]) {
+    await page.setViewportSize(viewport);
+    await page.waitForTimeout(80);
+    const current = await page.evaluate(measure, selectors);
+    for (const selector of selectors) {
+      for (let index = 0; index < 4; index += 1) {
+        expect(current[selector][index]).toBeCloseTo(baseline[selector][index], 3);
+      }
+    }
+  }
+});
+
+test('keeps menu actions inside the card and preserves the lobby label', async ({ page }) => {
+  test.slow();
+  await page.goto('/');
+  await page.waitForFunction(() => document.documentElement.dataset.menuReady === 'true', null, { timeout: 30_000 });
+  for (const viewport of [{ width: 640, height: 360 }, { width: 844, height: 390 }, { width: 1280, height: 720 }, { width: 1600, height: 900 }]) {
+    await page.setViewportSize(viewport);
+    await page.waitForTimeout(80);
+    const menu = await page.evaluate(() => {
+      const card = document.querySelector('.menu-card');
+      const actions = document.querySelector('.menu-actions');
+      const mainMenu = document.querySelector('#main-menu');
+      const cardRect = card.getBoundingClientRect();
+      const mainMenuRect = mainMenu.getBoundingClientRect();
+      const actionButtons = [...actions.querySelectorAll('button')].map((button) => {
+        const rect = button.getBoundingClientRect();
+        return { right: rect.right, bottom: rect.bottom, text: button.textContent.trim() };
+      });
+      return {
+        overflow: getComputedStyle(card).overflowY,
+        cardScrollHeight: card.scrollHeight,
+        cardClientHeight: card.clientHeight,
+        cardRight: cardRect.right,
+        cardBottom: cardRect.bottom,
+        topPadding: cardRect.top - mainMenuRect.top,
+        bottomPadding: mainMenuRect.bottom - cardRect.bottom,
+        actionButtons,
+      };
+    });
+    expect(menu.overflow).toBe('hidden');
+    expect(menu.cardScrollHeight - menu.cardClientHeight).toBeLessThanOrEqual(1);
+    expect(Math.abs(menu.topPadding - menu.bottomPadding)).toBeLessThanOrEqual(1);
+    for (const button of menu.actionButtons) {
+      expect(button.right).toBeLessThanOrEqual(menu.cardRight + 1);
+      expect(button.bottom).toBeLessThanOrEqual(menu.cardBottom + 1);
+    }
+  }
+
+  await page.locator('#menu-internet').click();
+  await page.locator('#nickname-input').press('Enter');
+  await page.waitForSelector('#chat-panel:not(.hidden)');
+  const chat = await page.evaluate(() => {
+    const label = document.querySelector('.chat-lobby-label');
+    const refresh = document.querySelector('#chat-room-refresh').getBoundingClientRect();
+    const create = document.querySelector('#chat-room-create').getBoundingClientRect();
+    const labelRect = label.getBoundingClientRect();
+    return {
+      labelWidth: labelRect.width,
+      labelScrollWidth: label.scrollWidth,
+      labelRight: labelRect.right,
+      refreshLeft: refresh.left,
+      createLeft: create.left,
+      hiddenRaceDisplay: getComputedStyle(document.querySelector('#chat-race')).display,
+      hiddenStartDisplay: getComputedStyle(document.querySelector('#chat-start')).display,
+    };
+  });
+  expect(chat.labelWidth).toBeGreaterThan(0);
+  expect(chat.labelScrollWidth).toBeLessThanOrEqual(chat.labelWidth + 1);
+  expect(chat.refreshLeft).toBeGreaterThanOrEqual(chat.labelRight - 1);
+  expect(chat.createLeft).toBeGreaterThan(chat.refreshLeft);
+  expect(chat.hiddenRaceDisplay).toBe('none');
+  expect(chat.hiddenStartDisplay).toBe('none');
+});
+
+test('uses the full viewport for the portrait warning', async ({ page }) => {
+  test.skip(test.info().project.name !== 'touch-landscape', 'Portrait warning is touch-only');
+  await page.goto('/');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator('#orientation-warning')).toBeVisible();
+  const geometry = await page.locator('#orientation-warning').evaluate((warning) => {
+    const rect = warning.getBoundingClientRect();
+    const text = warning.querySelector('span').getBoundingClientRect();
+    return { warning: [rect.x, rect.y, rect.width, rect.height], text: [text.width, text.height] };
+  });
+  expect(geometry.warning).toEqual([0, 0, 390, 844]);
+  expect(geometry.text[0]).toBeGreaterThan(0);
+  expect(geometry.text[1]).toBeGreaterThan(20);
 });
 
 test('renders collectible can and original animated missile meshes', async ({ page }) => {
