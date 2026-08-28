@@ -198,13 +198,13 @@ button {
   border: 1px solid rgba(102, 224, 247, 0.42);
   background: linear-gradient(140deg, rgba(5,14,19,0.92), rgba(1,5,8,0.78));
   box-shadow: 0 1rem 4rem rgba(0,0,0,0.56), inset 0 0 2rem rgba(43,180,208,0.06);
-  min-height: 332px;
+  min-height: 350px;
 }
 
 
 /* Procedural controls fit inside the same expanded panel; the shared height
    keeps the outer menu geometry identical for every track choice. */
-.menu-card:has(#procedural-controls:not(.hidden)) { min-height: 332px; }
+.menu-card:has(#procedural-controls:not(.hidden)) { min-height: 350px; }
 
 .menu-card > header {
   display: flex;

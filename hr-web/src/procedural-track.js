@@ -6,7 +6,7 @@ const TRACK_SHAPES = {
 
 const SURFACES = {
   floor: { dllId: 1, classId: 51, resourceId: null, texture: 'metal_plate.png' },
-  pit: { dllId: 1, classId: 68, resourceId: 1068, texture: 'pit_area.png' },
+  fuel: { dllId: 1, classId: 65, resourceId: 1065, texture: 'fuel_zone.png' },
   ceiling: { dllId: 1, classId: 50, resourceId: null, texture: null },
   wall: { dllId: 1, classId: 72, resourceId: null, texture: 'gray_wall.png' },
   checkers: { dllId: 1, classId: 67, resourceId: null, texture: 'checkers.png' },
@@ -271,11 +271,11 @@ export function generatePipeDreamTrack(seed = 1) {
   const firstCheckpoint = Math.floor(sampleCount / 3);
   const secondCheckpoint = Math.floor(sampleCount * 2 / 3);
   const finishRoom = sampleCount - 1;
-  const pitRooms = [...new Set([0.19, 0.51, 0.82].map((progress) =>
+  const fuelRooms = [...new Set([0.19, 0.51, 0.82].map((progress) =>
     Math.floor(sampleCount * progress)))];
-  for (const roomIndex of pitRooms) {
-    rooms[roomIndex].floorSurface = copySurface(SURFACES.pit);
-    rooms[roomIndex].wallSurfaces = Array.from({ length: 4 }, () => copySurface(SURFACES.pit));
+  for (const roomIndex of fuelRooms) {
+    rooms[roomIndex].floorSurface = copySurface(SURFACES.fuel);
+    rooms[roomIndex].wallSurfaces = Array.from({ length: 4 }, () => copySurface(SURFACES.fuel));
   }
   const rocketRooms = [...new Set([0.28, 0.64, 0.9].map((progress) => Math.floor(sampleCount * progress)))];
   const actors = [
@@ -286,7 +286,7 @@ export function generatePipeDreamTrack(seed = 1) {
       ...actor('powerup', roomIndex, positionAt(roomIndex, 0, 0, 1300), angleFor(tangents[roomIndex])),
       pickup: 'rocket',
     })),
-    ...pitRooms.map((roomIndex) => actor('fuel', roomIndex, positionAt(roomIndex), angleFor(tangents[roomIndex]))),
+    ...fuelRooms.map((roomIndex) => actor('fuel', roomIndex, positionAt(roomIndex), angleFor(tangents[roomIndex]))),
   ];
   rooms[firstCheckpoint].floorSurface = copySurface(SURFACES.checkers);
   rooms[secondCheckpoint].floorSurface = copySurface(SURFACES.checkers);
@@ -297,6 +297,6 @@ export function generatePipeDreamTrack(seed = 1) {
     title: `Pipe Dream · Seed ${numericSeed}`, seed: numericSeed, size: 'large', generator: 'pipe-dream',
     pipeGridSize: PIPE_GRID_SIZE,
     pipeLayout: { gridSize: PIPE_GRID_SIZE, cells: pipeCells },
-    pitRooms, rocketRooms, starts, rooms, features: [], actors,
+    fuelRooms, rocketRooms, starts, rooms, features: [], actors,
   };
 }

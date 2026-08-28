@@ -373,6 +373,19 @@ test('drops and recollects a mine using the native 0.6 mm/ms freefall', () => {
   assert.equal(simulation.state.projectiles.length, 0);
 });
 
+test('allows an armed missile to hit its own craft', () => {
+  const simulation = new RaceSimulation(testTrack(), 0);
+  simulation.state.projectiles = [{
+    id: 1, kind: 'missile', room: 0, position: [-100, 0, 1100],
+    orientation: 0, age: 200, active: true, exploded: false,
+  }];
+
+  simulation.updateProjectiles(5);
+
+  assert.equal(simulation.state.outOfControl, 2000);
+  assert.equal(simulation.state.projectiles[0].exploded, true);
+});
+
 test('applies peer craft momentum and remote missile hit effects', () => {
   const simulation = new RaceSimulation(testTrack(), 0);
   simulation.state.velocity = [10, 0, 0];
@@ -392,6 +405,24 @@ test('applies peer craft momentum and remote missile hit effects', () => {
 
   assert.equal(simulation.state.velocity[0], 0);
   assert.equal(simulation.state.collisionCount, 1);
+  assert.equal(simulation.state.outOfControl, 2000);
+});
+
+test('detects a remote missile crossing the craft between network snapshots', () => {
+  const simulation = new RaceSimulation(testTrack(), 0);
+  const remoteState = (position, age) => ({
+    room: 0,
+    position: [0, 0, 0],
+    velocity: [0, 0, 0],
+    projectiles: [{
+      id: 8, kind: 'missile', room: 0, position, orientation: 0, age,
+    }],
+  });
+
+  simulation.setRemotePlayers([{ id: 'peer', state: remoteState([-5000, 0, 1100], 200) }]);
+  simulation.setRemotePlayers([{ id: 'peer', state: remoteState([5000, 0, 1100], 300) }]);
+  simulation.updateRemoteContacts();
+
   assert.equal(simulation.state.outOfControl, 2000);
 });
 

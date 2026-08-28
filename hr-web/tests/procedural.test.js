@@ -54,7 +54,9 @@ test('Pipe Dream is a deterministic 10x10 pipe loop with strategic pickups', asy
   assert.ok(first.pipeLayout.cells.some((cell) => cell.piece === 'straight'));
   assert.ok(first.pipeLayout.cells.some((cell) => cell.piece.startsWith('curve')));
   assert.equal(first.rocketRooms.length, 3);
-  assert.equal(first.pitRooms.length, 3);
+  assert.equal(first.fuelRooms.length, 3);
+  assert.ok(first.fuelRooms.every((roomIndex) => first.rooms[roomIndex].floorSurface.texture === 'fuel_zone.png'));
+  assert.ok(first.fuelRooms.every((roomIndex) => first.rooms[roomIndex].wallSurfaces.every((surface) => surface.texture === 'fuel_zone.png')));
   assert.equal(first.actors.filter((entry) => entry.pickup === 'rocket').length, 3);
   assert.equal(first.actors.filter((entry) => entry.type === 'fuel').length, 3);
   assert.equal(first.rooms.length, first.pipeLayout.cells.length);

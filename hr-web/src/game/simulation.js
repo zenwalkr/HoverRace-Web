@@ -6,6 +6,8 @@ const ANGLE_COUNT = 4096;
 const PI_ANGLE = 2048;
 const TRIG_FRACTION = 16384;
 const CHARACTER_MOVEMENT_RADIUS = 1100;
+// MainCharacter's receiving collision shape in the original engine.
+const CHARACTER_COLLISION_RADIUS = 1300;
 const CHARACTER_CONTACT_RADIUS = 1450;
 const CHARACTER_HEIGHT = 1500;
 const CHECKPOINT_RADIUS = 20000;
@@ -83,6 +85,10 @@ function squaredDistanceToSegment(x, y, ax, ay, bx, by) {
   const offsetX = x - (ax + dx * amount);
   const offsetY = y - (ay + dy * amount);
   return offsetX * offsetX + offsetY * offsetY;
+}
+
+function segmentTouchesPoint(start, end, point, radius) {
+  return squaredDistanceToSegment(point[0], point[1], start[0], start[1], end[0], end[1]) <= radius * radius;
 }
 
 function circleTouchesPolygon(x, y, radius, section) {
@@ -213,6 +219,8 @@ export class RaceSimulation {
     this.remotePlayers = [];
     this.remoteHits = new Set();
     this.liveRemoteHazards = new Set();
+    this.remoteProjectilePositions = new Map();
+    this.remoteProjectileSegments = new Map();
     this.translation = [0, 0, 0];
     this.moveCandidate = [0, 0, 0];
     this.projectileCandidate = [0, 0, 0];
@@ -588,6 +596,21 @@ export class RaceSimulation {
   }
 
   setRemotePlayers(players) {
+    const nextProjectilePositions = new Map();
+    const projectileSegments = new Map();
+    for (const player of players) {
+      for (const projectile of player.state?.projectiles ?? []) {
+        const key = `${player.id}:${projectile.id}`;
+        const position = [...projectile.position];
+        const previous = this.remoteProjectilePositions.get(key);
+        if (previous && projectile.age >= previous.age) {
+          projectileSegments.set(key, { from: previous.position, to: position });
+        }
+        nextProjectilePositions.set(key, { age: projectile.age, position });
+      }
+    }
+    this.remoteProjectilePositions = nextProjectilePositions;
+    this.remoteProjectileSegments = projectileSegments;
     this.remotePlayers = players;
     for (const player of players) {
       const remote = player.state;
@@ -613,6 +636,7 @@ export class RaceSimulation {
 
   updateProjectiles(durationMs) {
     if (this.state.projectiles.length === 0) return;
+    const state = this.state;
     for (const projectile of this.state.projectiles) {
       projectile.age += durationMs;
       if (projectile.kind === 'mine') {
@@ -655,6 +679,7 @@ export class RaceSimulation {
         projectile.active = projectile.age < MISSILE_LIFE + MISSILE_STOP_TIME;
         continue;
       }
+      const previousPosition = [...projectile.position];
       const angle = projectile.orientation;
       const candidate = this.projectileCandidate;
       candidate[0] = projectile.position[0] +
@@ -680,6 +705,14 @@ export class RaceSimulation {
       }
 
       if (projectile.age >= MISSILE_IGNITION) {
+        if (projectile.room === state.room &&
+            this.segmentTouchesPlayer(previousPosition, projectile.position, state.position,
+              MISSILE_RADIUS + CHARACTER_COLLISION_RADIUS, MISSILE_RADIUS)) {
+          state.outOfControl = LOST_CONTROL_DURATION;
+          projectile.age = MISSILE_LIFE;
+          projectile.exploded = true;
+          continue;
+        }
         for (const [index, actor] of (this.track.actors ?? []).entries()) {
           if (this.state.actorVisible[index] === false || actor.classifiedRoom !== projectile.room) continue;
           if (actor.type !== 'mine' && actor.type !== 'bumperGate') continue;
@@ -693,8 +726,8 @@ export class RaceSimulation {
         }
         for (const player of this.remotePlayers) {
           if (!player.state || player.state.room !== projectile.room) continue;
-          if (this.shapeTouchesPoint(player.state.position, projectile.position,
-              MISSILE_RADIUS + CHARACTER_CONTACT_RADIUS, MISSILE_RADIUS)) {
+          if (this.segmentTouchesPlayer(previousPosition, projectile.position, player.state.position,
+              MISSILE_RADIUS + CHARACTER_COLLISION_RADIUS, MISSILE_RADIUS)) {
             projectile.age = MISSILE_LIFE;
             projectile.exploded = true;
             break;
@@ -724,6 +757,14 @@ export class RaceSimulation {
     const top = bottomAnchored ? projectile.position[2] + height : projectile.position[2] + height;
     return Math.max(this.state.position[2], bottom) <
       Math.min(this.state.position[2] + CHARACTER_HEIGHT, top);
+  }
+
+  segmentTouchesPlayer(start, end, characterPosition, radius, halfHeight, zOffset = 0) {
+    if (!segmentTouchesPoint(start, end, characterPosition, radius)) return false;
+    const pointBottom = Math.min(start[2], end[2]) + zOffset - halfHeight;
+    const pointTop = Math.max(start[2], end[2]) + zOffset + halfHeight;
+    return Math.max(characterPosition[2], pointBottom) <
+      Math.min(characterPosition[2] + CHARACTER_HEIGHT, pointTop);
   }
 
   shapeTouchesPoint(characterPosition, point, radius, halfHeight, zOffset = 0) {
@@ -769,9 +810,11 @@ export class RaceSimulation {
         if (this.remoteHits.has(key) || projectile.room !== state.room) continue;
         let hit = false;
         if (projectile.kind === 'missile' && projectile.age >= MISSILE_IGNITION &&
-            projectile.age < MISSILE_LIFE) {
-          hit = this.shapeTouchesPoint(state.position, projectile.position,
-            MISSILE_RADIUS + CHARACTER_CONTACT_RADIUS, MISSILE_RADIUS);
+            projectile.age < MISSILE_LIFE + MISSILE_STOP_TIME) {
+          const segment = this.remoteProjectileSegments.get(key);
+          hit = this.segmentTouchesPlayer(segment?.from ?? projectile.position,
+            segment?.to ?? projectile.position, state.position,
+            MISSILE_RADIUS + CHARACTER_COLLISION_RADIUS, MISSILE_RADIUS);
         } else if (projectile.kind === 'mine' && projectile.age > 500) {
           hit = this.shapeTouchesPoint(state.position, projectile.position,
             400 + CHARACTER_CONTACT_RADIUS, 70, 70);
@@ -783,6 +826,7 @@ export class RaceSimulation {
         }
       }
     }
+    this.remoteProjectileSegments.clear();
     for (const key of this.remoteHits) if (!liveHazards.has(key)) this.remoteHits.delete(key);
   }
 
