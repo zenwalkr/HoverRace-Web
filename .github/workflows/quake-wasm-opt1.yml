@@ -1,0 +1,120 @@
+name: QuakeSpasm WASM Opt1 Build
+
+on:
+  push:
+    branches:
+      - quake-wasm-build-temp-20260910
+    paths:
+      - '.github/workflows/quake-wasm-opt1.yml'
+      - 'quake-wasm-opt1/full.patch.gz.b64.*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Emscripten 3.1.69
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: '3.1.69'
+          actions-cache-folder: emsdk-cache
+
+      - name: Reconstruct and verify full opt1 patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat quake-wasm-opt1/full.patch.gz.b64.* > /tmp/opt1.patch.gz.b64
+          base64 -d /tmp/opt1.patch.gz.b64 > /tmp/opt1.patch.gz
+          echo '6624b11087a6006fea995dfc2429a86d8a51e6caa5dab37fc5e816bff20d839c  /tmp/opt1.patch.gz' | sha256sum -c -
+          gzip -dc /tmp/opt1.patch.gz > /tmp/opt1.patch
+          echo 'd8fb3032f6643fdfb6426519623965474c6717e24175c658276bd8c75b1d4a4d  /tmp/opt1.patch' | sha256sum -c -
+
+      - name: Fetch pinned sources and apply opt1
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone https://github.com/sezero/quakespasm.git /tmp/quakespasm
+          git -C /tmp/quakespasm checkout f5fe17864918239d443fe4c0d6bfb980e44d19e6
+          git clone https://github.com/ptitSeb/gl4es.git /tmp/gl4es
+          git -C /tmp/gl4es checkout 81547d986798e876de8b434193920b606a72363f
+          git -C /tmp/quakespasm apply --check /tmp/opt1.patch
+          git -C /tmp/quakespasm apply /tmp/opt1.patch
+
+      - name: Build Emscripten ports and patch SDL worker audio
+        shell: bash
+        run: |
+          set -euo pipefail
+          export EM_CACHE=/tmp/qs-emcache
+          export EM_FROZEN_CACHE=0
+          mkdir -p "$EM_CACHE"
+          embuilder build sdl2-mt
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          cache = Path(os.environ['EM_CACHE'])
+          files = list((cache / 'ports/sdl2').glob('SDL-*/src/audio/emscripten/SDL_emscriptenaudio.c'))
+          if len(files) != 1:
+              raise SystemExit(f'Expected exactly one SDL2 audio source, found {len(files)}')
+          source = files[0]
+          text = source.read_text()
+          old = 'this->spec.freq = EM_ASM_INT({'
+          new = 'this->spec.freq = MAIN_THREAD_EM_ASM_INT({'
+          if old in text:
+              source.write_text(text.replace(old, new, 1))
+              for archive in (cache / 'sysroot/lib').rglob('libSDL2-mt.a'):
+                  archive.unlink()
+          elif new not in text:
+              raise SystemExit('SDL2 audio source changed unexpectedly')
+          PY
+
+      - name: Build GL4ES for pthread WebGL
+        shell: bash
+        run: |
+          set -euo pipefail
+          export EM_CACHE=/tmp/qs-emcache
+          export EM_FROZEN_CACHE=0
+          emcmake cmake -S /tmp/gl4es -B /tmp/gl4es-build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_FLAGS=-pthread \
+            -DSTATICLIB=ON \
+            -DNOX11=ON \
+            -DNOEGL=ON \
+            -DNO_INIT_CONSTRUCTOR=ON \
+            -DNO_LOADER=ON
+          cmake --build /tmp/gl4es-build --parallel 2
+
+      - name: Build QuakeSpasm opt1 browser runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          export EM_CACHE=/tmp/qs-emcache
+          export EM_FROZEN_CACHE=0
+          make -C /tmp/quakespasm/Misc/qs_pak
+          cp /tmp/quakespasm/Misc/qs_pak/quakespasm.pak /tmp/quakespasm/Quake/quakespasm.pak
+          emmake make -C /tmp/quakespasm/Quake -f Makefile.emscripten clean
+          emmake make -C /tmp/quakespasm/Quake -f Makefile.emscripten -j2 \
+            GL4ES_INCLUDE_PATH=/tmp/gl4es/include \
+            GL4ES_LIB=/tmp/gl4es/lib/libGL.a
+          test -s /tmp/quakespasm/Quake/quakespasm.js
+          test -s /tmp/quakespasm/Quake/quakespasm.wasm
+          mkdir -p quake-wasm-opt1/output
+          cp /tmp/quakespasm/Quake/quakespasm.js quake-wasm-opt1/output/
+          cp /tmp/quakespasm/Quake/quakespasm.wasm quake-wasm-opt1/output/
+          cp /tmp/quakespasm/Quake/quakespasm.pak quake-wasm-opt1/output/
+          if [[ -f /tmp/quakespasm/Quake/quakespasm.worker.js ]]; then
+            cp /tmp/quakespasm/Quake/quakespasm.worker.js quake-wasm-opt1/output/
+          fi
+          sha256sum quake-wasm-opt1/output/*
+
+      - name: Upload opt1 runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: quakespasm-v2-wasm-opt1
+          path: quake-wasm-opt1/output/
+          if-no-files-found: error
+          retention-days: 1
